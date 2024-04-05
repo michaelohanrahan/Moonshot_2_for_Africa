@@ -1,0 +1,15 @@
+[project]
+name = "Wflow"
+version = "0.1.0"
+description = "Add a short description here"
+authors = ["Michael O'Hanrahan <104068149+michaelohanrahan@users.noreply.github.com>"]
+channels = ["conda-forge", "bioconda", "pip"]
+platforms = ["win-64"]
+
+[tasks]
+
+[dependencies]
+cookiecutter = ">=2.6.0,<2.7"
+jinja2-time = ">=0.2.0,<0.3"
+dvc = ">=3.48.2"
+snakemake = ">=8.10.6,<8.11"
