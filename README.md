@@ -30,4 +30,13 @@ Project Organization
         ├── 4-analyze       <- Scripts to post-process model results, from 4-output to 5-visualization.
         └── 5-visualize     <- Scripts for visualisation of your results, from 5-visualization to ./report/figures.
 
-## GIT: []
+## GIT: [https://github.com/michaelohanrahan/Moonshot_2_for_Africa.git]
+
+## Scripts
+
+### 01_cluster_basins.py
+
+This script takes a multipolygon file of independent basins and performs clustering. The clustering is performed
+in a manner that reduces overlap of the resulting model domains. 
+
+#TODO: determine if the resulting domains, which are large, should be split. 
