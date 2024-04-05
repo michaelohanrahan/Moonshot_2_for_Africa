@@ -1,0 +1,23 @@
+
+import os
+import geopandas as gpd
+
+
+#== fn: read_basin_data
+
+
+basins = snakemake.input.basin_geojson
+crs = snakemake.params.crs
+cluster_method = snakemake.params.method
+
+# Testmode
+#fix for NameError
+# if basins is None:
+#     basins = r"p:\data\2-interim\GIS\basins_mainland_and_madagascar.geojson"
+#     cluster_method = "domain_method" #{domain_method, ...}
+#     crs = "EPSG:4326"
+
+if __name__ == "main":
+    basin_data = gpd.read_file(basins, crs=crs)
+    centroids = basin_data.centroid
+    print(centroids)
