@@ -75,6 +75,6 @@ if cluster_method == "domain_method":
         basin = sorted_basin_data.loc[i]
         bbox = mapped_bbox.loc[i]
         cluster = intersecting(bbox['geometry'], sorted_basin_data, intersect_method)
-        plot_basins(sorted_basin_data, bbox_gdf, cluster)
+        plot_basins(basin, bbox, cluster)
         break
 
