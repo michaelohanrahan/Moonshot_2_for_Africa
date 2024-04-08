@@ -8,13 +8,13 @@ rule all:
     input: 
         cluster_out = os.path.join('data', '2-interim', 'clustered', cluster_method+'.geojson')
 
-rule cluster:
-	input:
-		basin_geojson = basin_path
-	params:
-		method = cluster_method,
-		crs = crs
+rule clusterbasins:
+    input: 
+        basin_path
+    params: 
+        method = cluster_method,
+        crs = crs
+    output:
+        os.path.join('data', '2-interim', 'clustered', cluster_method+'.geojson')
 	script:
 		"scripts/01_cluster_basins.py"
-	output:
-		out = os.path.join('data', '2-interim', 'clustered', cluster_method+'.geojson')

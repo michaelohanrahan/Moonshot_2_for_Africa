@@ -1,23 +1,80 @@
 
-import os
 import geopandas as gpd
+from shapely.geometry import Polygon
+import matplotlib.pyplot as plt
+import logging
+#create logger
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
-#== fn: read_basin_data
+#== PARAMS ==#
+try:
+    basins = snakemake.input.basin_geojson
+    crs = snakemake.params.crs
+    cluster_method = snakemake.params.method
+    
+except:
+    basins = r"p:\moonshot2-casestudy\Wflow\africa\data\2-interim\GIS\basins_mainland_and_madagascar.geojson"
+    cluster_method = "domain_method" #{domain_method, ...}
+    intersect_method = "centroid" #{centroid, majority, ...}
+    crs = "EPSG:4326"
+
+#log input params
+logging.info('Basins file: %s', basins)
+logging.info('CRS: %s', crs)
+logging.info('Cluster method: %s', cluster_method)
+logging.info('Intersect method: %s', intersect_method)
 
 
-basins = snakemake.input.basin_geojson
-crs = snakemake.params.crs
-cluster_method = snakemake.params.method
+#== FUNCTIONS ==#
+#sort basins by area
+def sort_by_area(basins):
+    try:
+        
+        return basins.sort_values(by='area_km2', ascending=False)
+    except:
+        try:
+            cols = basins.columns
+            col = [c for c in cols if 'area' in c.lower()][0]
+            print('col "area_km2" not found, using col:', col, 'instead.')
+            return basins.sort_values(by=col, ascending=False)
+        except:
+            print('Error: no area column found in basins dataframe. Exiting...')
+            exit(1)
 
-# Testmode
-#fix for NameError
-# if basins is None:
-#     basins = r"p:\data\2-interim\GIS\basins_mainland_and_madagascar.geojson"
-#     cluster_method = "domain_method" #{domain_method, ...}
-#     crs = "EPSG:4326"
+def intersecting(bbox, targets, method='centroid'):
+    if method == 'centroid':
+        targets = targets.centroid
 
-if __name__ == "main":
-    basin_data = gpd.read_file(basins, crs=crs)
-    centroids = basin_data.centroid
-    print(centroids)
+    targets = targets.to_crs(crs)
+    intersecting_indices = targets.index[targets.intersects(bbox)]
+    logging.info('Indices of basins intersecting bbox: %s', intersecting_indices)
+    return intersecting_indices
+
+def plot_basins(basins, bbox, indices):
+    fig, ax = plt.subplots()
+    basins.plot(ax=ax, color='blue', edgecolor='black')
+    bbox.plot(ax=ax, color='red', edgecolor='black')
+    plt.show()
+#== MAIN ==#
+
+# if __name__ == "__main__":
+basin_data = gpd.read_file(basins, crs=crs)
+sorted_basin_data = sort_by_area(basin_data).set_index('fid')
+
+#map bbox to geometry column
+mapped_bbox = sorted_basin_data.bounds
+mapped_bbox['geometry'] = mapped_bbox.apply(lambda x: Polygon([(x.minx, x.miny), (x.minx, x.maxy), (x.maxx, x.maxy), (x.maxx, x.miny)]), axis=1)
+bbox_gdf = gpd.GeoDataFrame(mapped_bbox, crs=crs)
+
+
+if cluster_method == "domain_method":
+    # start with the  largest basin and cluster all that fall within its bbox
+    for i in sorted_basin_data.index:
+        basin = sorted_basin_data.loc[i]
+        bbox = mapped_bbox.loc[i]
+        cluster = intersecting(bbox['geometry'], sorted_basin_data, intersect_method)
+        plot_basins(sorted_basin_data, bbox_gdf, cluster)
+        break
+
