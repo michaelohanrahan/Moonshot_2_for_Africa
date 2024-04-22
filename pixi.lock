@@ -291,6 +291,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/parso-0.8.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/pathlib2-2.3.7.post1-py312h2e8e312_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pathspec-0.12.1-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/patsy-0.5.6-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/pcre2-10.43-h17e33f8_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/peppy-0.40.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pickleshare-0.7.5-py_1003.tar.bz2
@@ -362,6 +363,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/scikit-learn-1.4.1.post1-py312hcacafb1_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/scipy-1.13.0-py312h8753938_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/scmrepo-3.3.1-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/seaborn-0.13.2-hd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/seaborn-base-0.13.2-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/semver-3.0.2-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/send2trash-1.8.3-pyh5737063_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/setuptools-69.2.0-pyhd8ed1ab_0.conda
@@ -387,6 +390,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/sqlite-3.45.2-hcfcfb64_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/sqltrie-0.11.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/stack_data-0.6.2-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/statsmodels-0.14.1-py312ha90f08f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/stopit-1.1.2-py_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/noarch/tabulate-0.9.0-pyhd8ed1ab_1.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/win-64/tbb-2021.11.0-h91493d7_1.conda
@@ -5678,6 +5682,23 @@ packages:
   size: 41173
   timestamp: 1702250135032
 - kind: conda
+  name: patsy
+  version: 0.5.6
+  build: pyhd8ed1ab_0
+  subdir: noarch
+  noarch: python
+  url: https://conda.anaconda.org/conda-forge/noarch/patsy-0.5.6-pyhd8ed1ab_0.conda
+  sha256: 35ad5cab1d9c08cf98576044bf28f75e62f8492afe6d1a89c94bbe93dc8d7258
+  md5: a5b55d1cb110cdcedc748b5c3e16e687
+  depends:
+  - numpy >=1.4.0
+  - python >=3.6
+  - six
+  license: BSD-2-Clause AND PSF-2.0
+  license_family: BSD
+  size: 187218
+  timestamp: 1704469432353
+- kind: conda
   name: pcre2
   version: '10.43'
   build: h17e33f8_0
@@ -6940,6 +6961,41 @@ packages:
   size: 59497
   timestamp: 1711895350347
 - kind: conda
+  name: seaborn
+  version: 0.13.2
+  build: hd8ed1ab_0
+  subdir: noarch
+  noarch: python
+  url: https://conda.anaconda.org/conda-forge/noarch/seaborn-0.13.2-hd8ed1ab_0.conda
+  sha256: 60a49c630bf429ae5264ee52f1e6a08df1d8b98c93047ec57f58786ef3094854
+  md5: fd31ebf5867914de597f9961c478e482
+  depends:
+  - seaborn-base 0.13.2 pyhd8ed1ab_0
+  - statsmodels >=0.12
+  license: BSD-3-Clause
+  license_family: BSD
+  size: 6883
+  timestamp: 1706341016553
+- kind: conda
+  name: seaborn-base
+  version: 0.13.2
+  build: pyhd8ed1ab_0
+  subdir: noarch
+  noarch: python
+  url: https://conda.anaconda.org/conda-forge/noarch/seaborn-base-0.13.2-pyhd8ed1ab_0.conda
+  sha256: 0c40edc2f36edbeeb38dd8fb667f63ce7759a2c148d5d5ca2044a791fe9898a1
+  md5: 0918a9201e824211cdf444dbf8d55752
+  depends:
+  - matplotlib-base >=3.4,!=3.6.1
+  - numpy >=1.20,!=1.24.0
+  - pandas >=1.2
+  - python >=3.8
+  - scipy >=1.7
+  license: BSD-3-Clause
+  license_family: BSD
+  size: 234447
+  timestamp: 1706341006780
+- kind: conda
   name: semver
   version: 3.0.2
   build: pyhd8ed1ab_0
@@ -7379,6 +7435,29 @@ packages:
   license_family: MIT
   size: 26205
   timestamp: 1669632203115
+- kind: conda
+  name: statsmodels
+  version: 0.14.1
+  build: py312ha90f08f_0
+  subdir: win-64
+  url: https://conda.anaconda.org/conda-forge/win-64/statsmodels-0.14.1-py312ha90f08f_0.conda
+  sha256: 44629900f545ceb34fc0a65d7f42b16c70ecbc1db5cf82c9719eec259fb367b6
+  md5: 16f577f829d422d205396be1b774a5ee
+  depends:
+  - numpy >=1.26.2,<2.0a0
+  - packaging >=21.3
+  - pandas >=1.0,!=2.1.0
+  - patsy >=0.5.4
+  - python >=3.12,<3.13.0a0
+  - python_abi 3.12.* *_cp312
+  - scipy >=1.4,!=1.9.2
+  - ucrt >=10.0.20348.0
+  - vc >=14.2,<15
+  - vc14_runtime >=14.29.30139
+  license: BSD-3-Clause
+  license_family: BSD
+  size: 11665989
+  timestamp: 1702576513759
 - kind: conda
   name: stopit
   version: 1.1.2

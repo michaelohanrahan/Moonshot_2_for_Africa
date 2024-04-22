@@ -5,6 +5,9 @@ from shapely.geometry import MultiPolygon
 import matplotlib.pyplot as plt
 import logging
 import os 
+import seaborn as sns
+from matplotlib.colors import ListedColormap
+
 #create logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +20,9 @@ try:
     basins = snakemake.input.basin_geojson
     crs = snakemake.params.crs
     cluster_method = snakemake.params.method
+    plot = snakemake.params.plot
+    logging.info('Snakemake object found, using params from snakemake...')
+    logging.info('Plot: %s', plot)
     
 except:
     logging.info('No snakemake object found, using default params...')
@@ -24,19 +30,24 @@ except:
     cluster_method = "domain_method" #{domain_method, ...}
     intersect_method = "centroid" #{centroid, majority, ...}
     crs = "EPSG:4326"
+    plot = True
+
+interim_dir = r'data\2-interim'
 
 #useful data 
 africa = gpd.read_file(r"data\1-external\administrative\Africa.shp", driver='ESRI Shapefile')
+
 #log input params
 logging.info('Basins file: %s', basins)
 logging.info('CRS: %s', crs)
 logging.info('Cluster method: %s', cluster_method)
 logging.info('Intersect method: %s', intersect_method)
 
+# =============================================================================
 
 #== FUNCTIONS ==#
 #sort basins by area
-def sort_by_area(basins):
+def sort_by_area(basins: gpd.GeoDataFrame):
     try:
         
         return basins.sort_values(by='area_km2', ascending=False)
@@ -51,6 +62,7 @@ def sort_by_area(basins):
             print('Error: no area column found in basins dataframe. Exiting...')
             exit(1)
 
+#function that retruns rules based intersecting basins
 def intersecting(bbox, targets, method='centroid'):
     if method == 'centroid':
         # Convert to a projected CRS before calculating centroid
@@ -61,6 +73,7 @@ def intersecting(bbox, targets, method='centroid'):
     logging.info('Indices of basins intersecting bbox: %s', intersecting_indices)
     return intersecting_indices
 
+#function for test plotting
 def plot_basins(basin: gpd.GeoDataFrame, #The basin that made the cluster
                 bbox: gpd.GeoDataFrame, # 
                 clustered: list):
@@ -71,7 +84,7 @@ def plot_basins(basin: gpd.GeoDataFrame, #The basin that made the cluster
     
     plt.show()
 
-
+#function for filling rings in the basins dataset
 def fill_rings(basins):
     '''
     Iterate the basins. If the geometry is a Polygon, extract the interior rings and create new polygons.
@@ -125,10 +138,9 @@ def fill_rings(basins):
 
     return basins
 
+# =============================================================================
 
-    
 #== MAIN ==#
-
 # if __name__ == "__main__":
 basin_data = gpd.read_file(basins, crs=crs)
 sorted_basin_data = sort_by_area(basin_data).set_index('fid')
@@ -143,15 +155,22 @@ mapped_bbox['geometry'] = mapped_bbox.apply(lambda x: Polygon([(x.minx, x.miny),
 bbox_gdf = gpd.GeoDataFrame(mapped_bbox, crs=crs)
 
 #test fill rings
-filled_data = fill_rings(sorted_basin_data)
+filled_data = sorted_basin_data.copy()
+# filled_data = fill_rings(sorted_basin_data)
 
 filled_data['cluster_id'] = None
 
 clustered = set()
+cluster_dict = {}
+count = 0
 
-for i in sorted_basin_data.index:
+for n, i in enumerate(sorted_basin_data.index):
     if i in clustered:
         continue
+
+    # Mask the gdf by the growing cluster set
+    if len(clustered) > 0:
+        filled_data = filled_data.loc[~filled_data.index.isin(clustered)] 
 
     logging.info('Basin: %s', i)
     basin = sorted_basin_data.loc[i]
@@ -163,10 +182,33 @@ for i in sorted_basin_data.index:
 
     plot_basins(basin, bbox, filled_data.loc[cluster])
 
+    # Update 'cluster_id' in both 'sorted_basin_data' and 'filled_data'
     sorted_basin_data.loc[cluster, 'cluster_id'] = i
-
+    filled_data.loc[cluster, 'cluster_id'] = i
+    
     clustered.add(i)
     clustered.update(cluster)
+    cluster_dict[i] = cluster
     print(clustered)
-    break
+    count += 1
 
+# lambda over the gdf to fil lthe columnf from the dict
+def find_key(index):
+    for key, values in cluster_dict.items():
+        if index in values:
+            return key
+    return None
+
+sorted_basin_data['cluster_key'] = sorted_basin_data.index.to_series().apply(find_key)
+
+if plot:
+    # Create a colormap
+    colors = sns.color_palette('Set3', n_colors=len(sorted_basin_data['cluster_key'].unique()))
+    cmap = ListedColormap(colors)
+
+    fig, ax = plt.subplots()
+    sorted_basin_data.plot(column='cluster_key', ax=ax, legend=True, cmap=cmap)
+    plt.show()
+
+sorted_basin_data.to_file(os.path.join(interim_dir, 'clustered_basins.geojson'), driver='GeoJSON')
+logging.info('Clustered basins saved to: %s', os.path.join(interim_dir, 'clustered_basins.geojson'))
