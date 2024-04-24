@@ -1,21 +1,23 @@
 import os
 
-cluster_method = "domain_method" #{domain_method, ...}
-crs = "EPSG:4326"
-basin_path = r"data\2-interim\GIS\basins_mainland_and_madagascar.geojson"
+os.chdir(r'p:\moonshot2-casestudy\Wflow\africa\data\2-interim')
 
 rule all:
     input: 
-        cluster_out = os.path.join('data', '2-interim', 'clustered', cluster_method+'.geojson')
+        cluster_out = os.path.join('data', '2-interim', 'dissolved_basins.geojson')
 
 rule clusterbasins:
     input: 
-        basin_path
+        basin_geojson = r"data\2-interim\GIS\basins_mainland_and_madagascar.geojson"
     params: 
-        method = cluster_method,
-        crs = crs
+        method = "domain_method",
+        intersect_method = "centroid",
+        crs = "EPSG:4326",
+        plot = False,
+        savefig = False,
+        test_list = [1843] #can be None
     output:
-        os.path.join('data', '2-interim', 'clustered', cluster_method+'.geojson')
+        os.path.join('data', '2-interim', 'dissolved_basins.geojson')
 	script:
 		"scripts/01_cluster_basins.py"
 

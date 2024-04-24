@@ -20,20 +20,33 @@ try:
     basins = snakemake.input.basin_geojson
     crs = snakemake.params.crs
     cluster_method = snakemake.params.method
+    intersect_method = snakemake.params.intersect_method
     plot = snakemake.params.plot
-    test = snakemake.params.test
+    savefig = snakemake.params.savefig
+    test_list = snakemake.params.test_list
     logging.info('Snakemake object found, using params from snakemake...')
-    logging.info('Plot: %s', plot)
+    logging.info('Plotting: %s', plot)
+    logging.info('Saving figures: %s', savefig)
+    logging.info('Test list: %s', test_list)
+    logging.info('CRS: %s', crs)
+    logging.info('Cluster method: %s', cluster_method)
+    logging.info('Intersect method: %s', intersect_method)
+    logging.info('Basins file: %s', basins)
+    logging.info('Test: %s', test)
+    logging.info('Fill rings: %s', fill_rings)
+    
     
 except:
     logging.info('No snakemake object found, using default params...')
     basins = r"data\2-interim\GIS\basins_mainland_and_madagascar.geojson"
     cluster_method = "domain_method" #{domain_method, ...}
     intersect_method = "centroid" #{centroid, majority, ...}
+    savefig = True
     crs = "EPSG:4326"
     plot = True
-    test = False
+    test = True
     fill_rings = False
+    test_list = [1761]
 
 interim_dir = r'data\2-interim'
 
@@ -79,12 +92,19 @@ def intersecting(bbox, targets, method='centroid'):
 #function for test plotting
 def plot_basins(basin: gpd.GeoDataFrame, #The basin that made the cluster
                 bbox: gpd.GeoDataFrame, # 
-                clustered: list):
+                clustered: gpd.GeoDataFrame, 
+                savefig:bool =False):
+    
+    plot_dir = r'data/5-visualization/cluster_plots'
     fig, ax = plt.subplots()
     gpd.GeoSeries(basin['geometry']).plot(ax=ax, color='blue', edgecolor='black')
     gpd.GeoSeries(bbox['geometry']).plot(ax=ax, edgecolor='red', facecolor='none')
     gpd.GeoSeries(clustered['geometry']).plot(ax=ax, color='green', edgecolor='black', alpha=0.5)
-    
+    gpd.GeoDataFrame(clustered['geometry']).dissolve().plot(ax=ax, color='none', edgecolor='pink', linewidth = 2, alpha=1)
+    plt.title(f'Basin {basin.name} and intersecting basins')
+    if savefig:
+        os.makedirs(plot_dir, exist_ok=True)
+        plt.savefig(os.path.join(plot_dir, f'cluster_{basin.name}.png'), dpi=400)
     plt.show()
 
 #function for filling rings in the basins dataset
@@ -141,84 +161,114 @@ def fill_rings(basins):
 
     return basins
 
-# =============================================================================
-
-#== MAIN ==#
-# if __name__ == "__main__":
-basin_data = gpd.read_file(basins, crs=crs)
-sorted_basin_data = sort_by_area(basin_data).set_index('fid')
-
-#map bbox to geometry column
-mapped_bbox = sorted_basin_data.bounds
-mapped_bbox['geometry'] = mapped_bbox.apply(lambda x: Polygon([(x.minx, x.miny), 
-                                                               (x.minx, x.maxy), 
-                                                               (x.maxx, x.maxy), 
-                                                               (x.maxx, x.miny)]), axis=1)
-#now a geodataframe of bboxes
-bbox_gdf = gpd.GeoDataFrame(mapped_bbox, crs=crs)
-
-#fill rings
-filled_data = sorted_basin_data.copy()
-
-#test fill rings
-if fill_rings:
-    filled_data = fill_rings(sorted_basin_data)
-
-filled_data['cluster_id'] = None
-
-#TODO: dissolve
-#TODO: fill rings
-clustered = set()
-cluster_dict = {}
-count = 0
-
-for n, i in enumerate(sorted_basin_data.index):
-    if i in clustered:
-        continue
-
-    # Mask the gdf by the growing cluster set
-    if len(clustered) > 0:
-        filled_data = filled_data.loc[~filled_data.index.isin(clustered)] 
-
-    logging.info('Basin: %s', i)
-    basin = sorted_basin_data.loc[i]
-    bbox = mapped_bbox.loc[i]
-
-    cluster = intersecting(bbox['geometry'], filled_data, intersect_method)
-
-    logging.info('(i, len(cluster)) %s', (i,len(cluster)))
-
-    plot_basins(basin, bbox, filled_data.loc[cluster])
-
-    # Update 'cluster_id' in both 'sorted_basin_data' and 'filled_data'
-    sorted_basin_data.loc[cluster, 'cluster_id'] = i
-    filled_data.loc[cluster, 'cluster_id'] = i
-    
-    clustered.add(i)
-    clustered.update(cluster)
-    cluster_dict[i] = cluster
-    print(clustered)
-    count += 1
-
-# lambda over the gdf to fil lthe columnf from the dict
+# lambda over the gdf to fill the column from the dict
 def find_key(index):
     for key, values in cluster_dict.items():
         if index in values:
             return key
     return None
 
-sorted_basin_data['cluster_key'] = sorted_basin_data.index.to_series().apply(find_key)
+def dissolve(gdf, by='cluster_id', test_list=None):
+    
+    if test_list != None:
+        gdf = gdf.loc[gdf.index.isin(test_list)]
+    
+    return gdf.dissolve(by=by)
 
-if plot:
-    # Create a colormap
-    colors = sns.color_palette('Set3', n_colors=len(sorted_basin_data['cluster_key'].unique()))
-    cmap = ListedColormap(colors)
+def to_polygon(geom):
+    if geom.type == 'Polygon':
+        return geom
+    elif geom.type == 'MultiPolygon':
+        # Convert the MultiPolygon to a list of Polygons
+        polygons = [polygon for polygon in geom.geoms]
+        # Return the Polygon with the maximum area
+        return max(polygons, key=lambda part: part.area)
+    else:
+        # If it's a different type of geometry, raise an error
+        raise ValueError(f'Cannot convert geometry of type {geom.type} to Polygon')
 
-    fig, ax = plt.subplots()
-    sorted_basin_data.plot(column='cluster_key', ax=ax, legend=True, cmap=cmap)
-    plt.show()
+# =============================================================================
 
-sorted_basin_data.to_file(os.path.join(interim_dir, 'clustered_basins.geojson'), driver='GeoJSON')
-logging.info('Clustered basins saved to: %s', os.path.join(interim_dir, 'clustered_basins.geojson'))
+#== MAIN ==#
+if __name__ == "__main__":
 
+    #read file
+    basin_data = gpd.read_file(basins, crs=crs)
+    logging.info('Basins data loaded: %s', basins)
+
+    sorted_basin_data = sort_by_area(basin_data).set_index('fid')
+
+    #map bbox to geometry column
+    mapped_bbox = sorted_basin_data.bounds
+    mapped_bbox['geometry'] = mapped_bbox.apply(lambda x: Polygon([(x.minx, x.miny), 
+                                                                (x.minx, x.maxy), 
+                                                                (x.maxx, x.maxy), 
+                                                                (x.maxx, x.miny)]), axis=1)
+    #now a geodataframe of bboxes
+    bbox_gdf = gpd.GeoDataFrame(mapped_bbox, crs=crs)
+
+    #fill rings
+    filled_data = sorted_basin_data.copy()
+
+    #test fill rings
+    if fill_rings == True:
+        filled_data = fill_rings(sorted_basin_data)
+
+    filled_data['cluster_id'] = None
+
+    clustered = set()
+    cluster_dict = {}
+
+    for n, i in enumerate(sorted_basin_data.index):
+        if i in clustered:
+            continue
+
+        # Mask the gdf by the growing cluster set
+        if len(clustered) > 0:
+            filled_data = filled_data.loc[~filled_data.index.isin(clustered)] 
+
+        logging.info('Basin: %s', i)
+        basin = sorted_basin_data.loc[i]
+        bbox = mapped_bbox.loc[i]
+
+        cluster = intersecting(bbox['geometry'], filled_data, intersect_method)
+
+        logging.info('(i, len(cluster)) %s', (i,len(cluster)))
+
+        
+        # Update 'cluster_id' in both 'sorted_basin_data' and 'filled_data'
+        sorted_basin_data.loc[cluster, 'cluster_id'] = i
+        filled_data.loc[cluster, 'cluster_id'] = i
+        
+        if plot:
+            plot_basins(basin, bbox, filled_data.loc[cluster])
+        
+        clustered.add(i)
+        clustered.update(cluster)
+        cluster_dict[i] = cluster
+
+    sorted_basin_data['cluster_key'] = sorted_basin_data.index.to_series().apply(find_key)
+
+    if plot:
+        # Create a colormap
+        colors = sns.color_palette('Set3', n_colors=len(sorted_basin_data['cluster_key'].unique()))
+        cmap = ListedColormap(colors)
+        n_clusters = len(sorted_basin_data['cluster_key'].unique())
+        fig, ax = plt.subplots()
+        sorted_basin_data.plot(column='cluster_key', ax=ax, legend=True, cmap=cmap)
+        ax.set_title(f'clustered by {cluster_method}, n = {n_clusters} clusters')
+
+        if savefig:
+            plt.savefig(os.path.join(interim_dir, 'clustered_basins.png'), dpi=400)
+        plt.show()
+        
+    sorted_basin_data.to_file(os.path.join(interim_dir, 'clustered_basins.geojson'), driver='GeoJSON')
+
+    diss = dissolve(sorted_basin_data, by='cluster_key', test_list=test_list)
+    diss = diss['geometry'].apply(to_polygon)
+
+    diss.to_file(os.path.join(interim_dir, 'dissolved_basins.geojson'), driver='GeoJSON')
+
+    logging.info('Clustered basins saved to: %s', os.path.join(interim_dir, 'clustered_basins.geojson'))
+    logging.info('Dissolved basins saved to: %s', os.path.join(interim_dir, 'dissolved_basins.geojson'))
 #TODO: output the geometries to POLYGON only, not MULTIPOLYGON
