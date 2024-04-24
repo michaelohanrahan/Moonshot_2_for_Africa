@@ -1,6 +1,6 @@
 import os
 
-os.chdir(r'p:\moonshot2-casestudy\Wflow\africa\data\2-interim')
+os.chdir(r'p:\moonshot2-casestudy\Wflow\africa')
 
 rule all:
     input: 
@@ -15,9 +15,9 @@ rule clusterbasins:
         crs = "EPSG:4326",
         plot = False,
         savefig = False,
-        test_list = [1843] #can be None
+        test_list = None#[1843] #can be None
     output:
-        os.path.join('data', '2-interim', 'dissolved_basins.geojson')
+        cluster_out = os.path.join('data', '2-interim', 'dissolved_basins.geojson')
 	script:
 		"scripts/01_cluster_basins.py"
 
