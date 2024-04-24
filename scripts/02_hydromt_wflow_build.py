@@ -6,15 +6,23 @@ import os
 
 # setup logging
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
+ROOT = "c:/Users/hartgrin/OneDrive - Stichting Deltares/Projecten/Moonshot/Moonshot_2_for_Africa"
+ROOT = "z:/OneDrive - Stichting Deltares/Projecten/Moonshot/Moonshot_2_for_Africa/"
 # global settings for Wflow model
 MODE = "w"
-BUILD_CONFIG = "../config/02_hydromt-build.yml"
-ROOT = "../src/3-model/wflow_build" #TODO model locations?
+BUILD_CONFIG = os.path.join(ROOT, "config/02_hydromt-build.yml")
+WFLOW_ROOT = os.path.join(ROOT, "src/3-model/wflow_build") #TODO model locations?
 
 # snakemake input
-BASIN_INDEX = snakemake.wildcards.basin_index
-CLUSTERED_GEOMETRIES = snakemake.params.clustered_geometries
+# BASIN_INDEX = snakemake.wildcards.basin_index
+# CLUSTERED_GEOMETRIES = snakemake.params.clustered_geometries
+
+# hard-coded input for testing
+BASIN_INDEX = 1761
+INDEX_COL = "fid"
+CLUSTERED_GEOMETRIES = os.path.join(ROOT, "data/2-interim/clustered_basins.geojson")
 
 # possible to include resolution as parameter via snakemake
 # via RES = snakemake.params.resolution and set res=RES in create_model()
@@ -31,15 +39,16 @@ def get_catalog() -> str:
     return path_catalog
 
 def get_root(prefix=None) -> str:
-    root = os.path.join(ROOT, f"{prefix}BASIN_INDEX")
+    root = os.path.join(WFLOW_ROOT, f"{prefix}{BASIN_INDEX}")
     return root
 
 def get_geom() -> gpd.GeoDataFrame:
     all_geoms = gpd.read_file(CLUSTERED_GEOMETRIES)
-    geom = all_geoms[BASIN_INDEX]
+    geom = all_geoms[all_geoms[INDEX_COL] == BASIN_INDEX]
+    geom = geom.explode() #MULTIPOLYGON to POLYGON, TODO remove when no longer necessary
     return geom
 
-def create_model(root: str, geom: gpd.GeoDataFrame, uparea: float = 100, res: float = None) -> None:
+def create_model(root: str, geom: gpd.GeoDataFrame, uparea: float = 1, res: float = None) -> None:
     # get data catalog, either Linux or Windows
     data_libs = [get_catalog()]
     config = hydromt.config.configread(config_fn=BUILD_CONFIG)
@@ -49,15 +58,15 @@ def create_model(root: str, geom: gpd.GeoDataFrame, uparea: float = 100, res: fl
     # initialize model in root directory linked to basin ID
     w = WflowModel(root=root, mode=MODE, data_libs=data_libs, logger=logger)
     # see for region settings: https://deltares.github.io/hydromt/latest/user_guide/model_region.html
-    region = {"subbasin": geom, "uparea": uparea}
+    region = {"basin": geom, "uparea": uparea}
     # build model using geometry file linked to basin ID
-    w.build(regio=region, write=True, opt=config)
+    w.build(region=region, write=True, opt=config)
     return
 
 if __name__ == "__main__":
-    logging.debug(f"CUSTOM: creating root linked to basin id {BASIN_INDEX}")
+    logging.info(f"CUSTOM: creating root linked to basin id {BASIN_INDEX}")
     root = get_root(prefix="test_")
-    logging.debug(f"CUSTOM: reading geometry file and finding geom with index {BASIN_INDEX}")
+    logging.info(f"CUSTOM: reading geometry file and finding geom with index {BASIN_INDEX}")
     geom = get_geom()
-    logging.debug(f"CUSTOM: start initializing and building Wflow model!")
+    logging.info(f"CUSTOM: start initializing and building Wflow model!")
     create_model(root=root, geom=geom)
