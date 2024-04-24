@@ -21,6 +21,7 @@ try:
     crs = snakemake.params.crs
     cluster_method = snakemake.params.method
     plot = snakemake.params.plot
+    test = snakemake.params.test
     logging.info('Snakemake object found, using params from snakemake...')
     logging.info('Plot: %s', plot)
     
@@ -31,6 +32,8 @@ except:
     intersect_method = "centroid" #{centroid, majority, ...}
     crs = "EPSG:4326"
     plot = True
+    test = False
+    fill_rings = False
 
 interim_dir = r'data\2-interim'
 
@@ -154,12 +157,17 @@ mapped_bbox['geometry'] = mapped_bbox.apply(lambda x: Polygon([(x.minx, x.miny),
 #now a geodataframe of bboxes
 bbox_gdf = gpd.GeoDataFrame(mapped_bbox, crs=crs)
 
-#test fill rings
+#fill rings
 filled_data = sorted_basin_data.copy()
-# filled_data = fill_rings(sorted_basin_data)
+
+#test fill rings
+if fill_rings:
+    filled_data = fill_rings(sorted_basin_data)
 
 filled_data['cluster_id'] = None
 
+#TODO: dissolve
+#TODO: fill rings
 clustered = set()
 cluster_dict = {}
 count = 0
@@ -212,3 +220,5 @@ if plot:
 
 sorted_basin_data.to_file(os.path.join(interim_dir, 'clustered_basins.geojson'), driver='GeoJSON')
 logging.info('Clustered basins saved to: %s', os.path.join(interim_dir, 'clustered_basins.geojson'))
+
+#TODO: output the geometries to POLYGON only, not MULTIPOLYGON

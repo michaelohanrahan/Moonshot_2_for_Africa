@@ -18,3 +18,4 @@ rule clusterbasins:
         os.path.join('data', '2-interim', 'clustered', cluster_method+'.geojson')
 	script:
 		"scripts/01_cluster_basins.py"
+
