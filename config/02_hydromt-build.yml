@@ -1,0 +1,5 @@
+setup_basemaps:
+  hydrography_fn: merit_hydro_1k
+  basin_index_fn: merit_hydro_index
+  upscale_method: ihu
+  res: 0.00833
