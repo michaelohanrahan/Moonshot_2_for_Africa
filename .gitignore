@@ -100,6 +100,7 @@ data/2-interim
 data/3-input
 data/4-output
 data/5-visualization
+src/3-model
 
 # exclude figures
 reports/figures
