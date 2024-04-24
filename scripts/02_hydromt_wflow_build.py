@@ -1,0 +1,63 @@
+from hydromt_wflow import WflowModel
+import hydromt
+import geopandas as gpd
+import logging
+import os
+
+# setup logging
+logger = logging.getLogger(__name__)
+
+# global settings for Wflow model
+MODE = "w"
+BUILD_CONFIG = "../config/02_hydromt-build.yml"
+ROOT = "../src/3-model/wflow_build" #TODO model locations?
+
+# snakemake input
+BASIN_INDEX = snakemake.wildcards.basin_index
+CLUSTERED_GEOMETRIES = snakemake.params.clustered_geometries
+
+# possible to include resolution as parameter via snakemake
+# via RES = snakemake.params.resolution and set res=RES in create_model()
+
+def get_catalog() -> str:
+    from sys import platform
+    if platform == "linux" or platform == "linux2":
+        #path_catalog = "/p/something/deltares_data_linux.yml"?
+        raise NotImplementedError("Linux data catalog not yet implemented in this script")
+    elif platform == "win32":
+        path_catalog = "p:/wflow_global/hydromt/deltares_data.yml"
+    else:
+        raise SystemError(f"operating system {platform} not supported by this script")
+    return path_catalog
+
+def get_root(prefix=None) -> str:
+    root = os.path.join(ROOT, f"{prefix}BASIN_INDEX")
+    return root
+
+def get_geom() -> gpd.GeoDataFrame:
+    all_geoms = gpd.read_file(CLUSTERED_GEOMETRIES)
+    geom = all_geoms[BASIN_INDEX]
+    return geom
+
+def create_model(root: str, geom: gpd.GeoDataFrame, uparea: float = 100, res: float = None) -> None:
+    # get data catalog, either Linux or Windows
+    data_libs = [get_catalog()]
+    config = hydromt.config.configread(config_fn=BUILD_CONFIG)
+    # update model resolution if provided
+    if res:
+        config['setup_basemaps']['res'] = res
+    # initialize model in root directory linked to basin ID
+    w = WflowModel(root=root, mode=MODE, data_libs=data_libs, logger=logger)
+    # see for region settings: https://deltares.github.io/hydromt/latest/user_guide/model_region.html
+    region = {"subbasin": geom, "uparea": uparea}
+    # build model using geometry file linked to basin ID
+    w.build(regio=region, write=True, opt=config)
+    return
+
+if __name__ == "__main__":
+    logging.debug(f"CUSTOM: creating root linked to basin id {BASIN_INDEX}")
+    root = get_root(prefix="test_")
+    logging.debug(f"CUSTOM: reading geometry file and finding geom with index {BASIN_INDEX}")
+    geom = get_geom()
+    logging.debug(f"CUSTOM: start initializing and building Wflow model!")
+    create_model(root=root, geom=geom)
