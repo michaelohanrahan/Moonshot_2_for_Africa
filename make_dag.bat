@@ -1,6 +1,6 @@
-@echo off
+@echo
 
-pixi shell
-snakemake --dag | dot -Tsvg > dag.svg
+echo Activating the pixi environment
+pixi run snakemake --forceall --dag | dot -Tpdf > dag.pdf 
 
 pause

@@ -5,29 +5,26 @@ from shapely.geometry import MultiPolygon
 import matplotlib.pyplot as plt
 import logging
 import os 
+from pathlib import Path
 import seaborn as sns
 from matplotlib.colors import ListedColormap
 import traceback
 
-# ensure working directory is correct
-os.chdir(r'p:\moonshot2-casestudy\Wflow\africa')
-
-#create logger
-logger = logging.getLogger(__name__)
-logging.basicConfig(filename=os.path.join('data', '0-log', f'{__name__}.log'), filemode='w', level=logging.INFO)
-
-logging.info('Working directory: %s', os.getcwd())
-
 #== PARAMS ==#
 try:
+    # INPUT
     basins = snakemake.input.basin_geojson
+    
+    #PARAMS
     crs = snakemake.params.crs
     cluster_method = snakemake.params.method
-    intersect_method = snakemake.params.intersect_method
+    intersect_method = snakemake.params.touches
     plot = snakemake.params.plot
     savefig = snakemake.params.savefig
     test_list = snakemake.params.test_list
     fill_rings = snakemake.params.fill_rings
+    
+    #LOGGING
     logging.info('Snakemake object found, using params from snakemake...')
     logging.info('Plotting: %s', plot)
     logging.info('Saving figures: %s', savefig)
@@ -41,21 +38,27 @@ try:
     
     
 except:
+    os.chdir('p:/moonshot2-casestudy/Wflow/africa')
     logging.info('No snakemake object found, using default params...')
     basins = r"data\2-interim\GIS\basins_mainland_and_madagascar.geojson"
     cluster_method = "domain_method" #{domain_method, ...}
     intersect_method = "centroid" #{centroid, majority, ...}
     savefig = True
     crs = "EPSG:4326"
-    plot = True
-    test = True
+    plot = False
+    test = False
     fill_rings = False
-    test_list = [1761]
+    test_list = None
+    
+#create logger
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename=Path(os.path.join('data', '0-log', f'cluster_basins.log')).as_posix(), filemode='w', level=logging.INFO)
+logging.info('Working directory: %s', os.getcwd())
 
-interim_dir = r'data\2-interim'
+interim_dir = Path(r'data\2-interim').as_posix()
 
 #useful data 
-africa = gpd.read_file(r"data\1-external\administrative\Africa.shp", driver='ESRI Shapefile')
+africa = gpd.read_file(Path(r"data\1-external\administrative\Africa.shp").as_posix(), driver='ESRI Shapefile')
 
 #log input params
 logging.info('Basins file: %s', basins)
@@ -89,6 +92,49 @@ def intersecting(bbox, targets, method='centroid'):
     intersecting_indices = targets.index[targets.intersects(bbox)]
     logging.info('Indices of basins intersecting bbox: %s', intersecting_indices)
     return intersecting_indices
+
+# cluster basins
+def cluster_basins(sorted_basin_data, mapped_bbox, filled_data, intersect_method, plot=False):
+            filled_data['cluster_id'] = None
+
+            clustered = set()
+            cluster_dict = {}
+
+            for n, i in enumerate(sorted_basin_data.index):
+                try:
+                    if i in clustered:
+                        continue
+
+                    # Mask the gdf by the growing cluster set
+                    if len(clustered) > 0:
+                        filled_data = filled_data.loc[~filled_data.index.isin(clustered)] 
+
+                    logging.info('Basin: %s', i)
+                    basin = sorted_basin_data.loc[i]
+                    bbox = mapped_bbox.loc[i]
+
+                    cluster = intersecting(bbox['geometry'], filled_data, intersect_method)
+
+                    logging.info('(i, len(cluster)) %s', (i,len(cluster)))
+
+
+                    # Update 'cluster_id' in both 'sorted_basin_data' and 'filled_data'
+                    sorted_basin_data.loc[cluster, 'cluster_id'] = i
+                    filled_data.loc[cluster, 'cluster_id'] = i
+
+                    if plot==True:
+                        plot_basins(basin, bbox, filled_data.loc[cluster])
+
+                    clustered.add(i)
+                    clustered.update(cluster)
+                    cluster_dict[i] = cluster
+                except AttributeError as e:
+                    logging.error('Error: %s', e)
+                    continue
+
+            sorted_basin_data['cluster_key'] = sorted_basin_data.index.to_series().apply(find_key, args=(cluster_dict,))
+            
+            return sorted_basin_data, cluster_dict, filled_data, cluster_dict
 
 #function for test plotting
 def plot_basins(basin: gpd.GeoDataFrame, #The basin that made the cluster
@@ -162,7 +208,7 @@ def fill_rings(basins):
     return basins
 
 # lambda over the gdf to fill the column from the dict
-def find_key(index):
+def find_key(index, cluster_dict):
     for key, values in cluster_dict.items():
         if index in values:
             return key
@@ -174,16 +220,17 @@ def dissolve(gdf, by='cluster_id', test_list=None):
     return gdf.dissolve(by=by)
 
 def to_polygon(geom):
-    if geom.type == 'Polygon':
+    if geom.geom_type == 'Polygon':
         return geom
-    elif geom.type == 'MultiPolygon':
+    elif geom.geom_type == 'MultiPolygon':
         # Convert the MultiPolygon to a list of Polygons
         polygons = [polygon for polygon in geom.geoms]
         # Return the Polygon with the maximum area
         return max(polygons, key=lambda part: part.area)
     else:
         # If it's a different type of geometry, raise an error
-        raise ValueError(f'Cannot convert geometry of type {geom.type} to Polygon')
+        raise ValueError(f'Cannot convert geometry of type {geom.geom_type} to Polygon')
+
 
 # =============================================================================
 
@@ -213,40 +260,12 @@ if __name__ == "__main__":
         if fill_rings == True:
             filled_data = fill_rings(sorted_basin_data)
 
-        filled_data['cluster_id'] = None
-
-        clustered = set()
-        cluster_dict = {}
-
-        for n, i in enumerate(sorted_basin_data.index):
-            if i in clustered:
-                continue
-
-            # Mask the gdf by the growing cluster set
-            if len(clustered) > 0:
-                filled_data = filled_data.loc[~filled_data.index.isin(clustered)] 
-
-            logging.info('Basin: %s', i)
-            basin = sorted_basin_data.loc[i]
-            bbox = mapped_bbox.loc[i]
-
-            cluster = intersecting(bbox['geometry'], filled_data, intersect_method)
-
-            logging.info('(i, len(cluster)) %s', (i,len(cluster)))
-
-            
-            # Update 'cluster_id' in both 'sorted_basin_data' and 'filled_data'
-            sorted_basin_data.loc[cluster, 'cluster_id'] = i
-            filled_data.loc[cluster, 'cluster_id'] = i
-            
-            if plot==True:
-                plot_basins(basin, bbox, filled_data.loc[cluster])
-            
-            clustered.add(i)
-            clustered.update(cluster)
-            cluster_dict[i] = cluster
-
-        sorted_basin_data['cluster_key'] = sorted_basin_data.index.to_series().apply(find_key)
+        # Call the cluster_basins function
+        sorted_basin_data, cluster_dict, filled_data, cluster_dict = cluster_basins(sorted_basin_data, 
+                                                                                    mapped_bbox, 
+                                                                                    filled_data, 
+                                                                                    intersect_method, 
+                                                                                    plot)
 
         if plot==True:
             # Create a colormap
@@ -258,27 +277,26 @@ if __name__ == "__main__":
             ax.set_title(f'clustered by {cluster_method}, n = {n_clusters} clusters')
 
             if savefig:
-                plt.savefig(os.path.join(interim_dir, 'clustered_basins.png'), dpi=400)
-            # plt.show()
-            
-        sorted_basin_data.to_file(os.path.join(interim_dir, 'clustered_basins.geojson'), driver='GeoJSON')
+                plt.savefig(Path(os.path.join(interim_dir, 'clustered_basins.png')).as_posix(), dpi=400)
+
+        sorted_basin_data.to_file(Path(os.path.join(interim_dir, 'clustered_basins.geojson')).as_posix(), driver='GeoJSON')
 
         diss = dissolve(sorted_basin_data, by='cluster_key', test_list=test_list)
         diss = diss['geometry'].apply(to_polygon)
 
-        diss.to_file(os.path.join(interim_dir, 'dissolved_basins.geojson'), driver='GeoJSON')
+        diss.to_file(Path(os.path.join(interim_dir, 'dissolved_basins.geojson')).as_posix(), driver='GeoJSON')
+
+        ls = list(diss.index.unique())
         
-        ls = list(diss.cluster_id.unique())
-        
-        with open(os.path.join(interim_dir, 'cluster_list.txt'), 'w') as f:
+        with open(Path(os.path.join(interim_dir, 'cluster_list.txt')).as_posix(), 'w') as f:
             for item in ls:
                 f.write("%s\n" % item)
 
-        logging.info('Clustered basins saved to: %s', os.path.join(interim_dir, 'clustered_basins.geojson'))
-        logging.info('Dissolved basins saved to: %s', os.path.join(interim_dir, 'dissolved_basins.geojson'))
+        logging.info('Clustered basins saved to: %s', Path(os.path.join(interim_dir, 'clustered_basins.geojson')).as_posix())
+        logging.info('Dissolved basins saved to: %s', Path(os.path.join(interim_dir, 'dissolved_basins.geojson')).as_posix())
     
     except Exception as e:
         logging.error('Error: %s', e)
-        # traceback.print_exc()
+        traceback.print_exc()
         exit(1)
     
