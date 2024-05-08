@@ -9,11 +9,13 @@ import seaborn as sns
 from matplotlib.colors import ListedColormap
 import traceback
 
+# ensure working directory is correct
+os.chdir(r'p:\moonshot2-casestudy\Wflow\africa')
+
 #create logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename=os.path.join('data', '0-log', f'{__name__}.log'), filemode='w', level=logging.INFO)
 
-os.chdir(r'p:\moonshot2-casestudy\Wflow\africa')
 logging.info('Working directory: %s', os.getcwd())
 
 #== PARAMS ==#
@@ -67,7 +69,6 @@ logging.info('Intersect method: %s', intersect_method)
 #sort basins by area
 def sort_by_area(basins: gpd.GeoDataFrame):
     try:
-        
         return basins.sort_values(by='area_km2', ascending=False)
     except:
         try:
