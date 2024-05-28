@@ -1,18 +1,18 @@
 from hydromt_wflow import WflowModel
 import hydromt
 import geopandas as gpd
-import logging
 import os
 
 # setup logging
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+from hydromt.log import setuplog
+logger = setuplog("Moonshot 2 - Africa", log_level=10)
 
-ROOT = "c:/Users/hartgrin/OneDrive - Stichting Deltares/Projecten/Moonshot/Moonshot_2_for_Africa"
-# ROOT = "z:/OneDrive - Stichting Deltares/Projecten/Moonshot/Moonshot_2_for_Africa/"
+# ROOT = "c:/Users/hartgrin/OneDrive - Stichting Deltares/Projecten/Moonshot/Moonshot_2_for_Africa"
+ROOT = "z:/OneDrive - Stichting Deltares/Projecten/Moonshot/Moonshot_2_for_Africa/"
+
 # global settings for Wflow model
 MODE = "w"
-BUILD_CONFIG = os.path.join(ROOT, "config/02_hydromt-build.yml")
+BUILD_CONFIG = os.path.join(ROOT, "config/02_hydromt-build-full.yml")
 WFLOW_ROOT = os.path.join(ROOT, "src/3-model/wflow_build") #TODO model locations?
 
 # snakemake input
@@ -64,9 +64,9 @@ def create_model(root: str, geom: gpd.GeoDataFrame, uparea: float = 1, res: floa
     return
 
 if __name__ == "__main__":
-    logging.info(f"CUSTOM: creating root linked to basin id {BASIN_INDEX}")
+    logger.info(f"CUSTOM: creating root linked to basin id {BASIN_INDEX}")
     root = get_root(prefix="test_")
-    logging.info(f"CUSTOM: reading geometry file and finding geom with index {BASIN_INDEX}")
+    logger.info(f"CUSTOM: reading geometry file and finding geom with index {BASIN_INDEX}")
     geom = get_geom()
-    logging.info(f"CUSTOM: start initializing and building Wflow model!")
+    logger.info(f"CUSTOM: start initializing and building Wflow model!")
     create_model(root=root, geom=geom)
