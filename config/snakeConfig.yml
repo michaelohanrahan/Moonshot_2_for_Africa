@@ -1,8 +1,13 @@
 system:
   crs: "EPSG:4326"
   
-files:
+data:
   basins: "data/2-interim/GIS/basins_mainland_and_madagascar.geojson"
+  directories:
+    external: "data/1-external"
+    interim: "data/2-interim"
+    input: "data/3-input"
+    output: "data/4-output"
 
 methods:
   cluster: "domain_method"
@@ -12,7 +17,6 @@ wflow:
   starttime: "2010-01-01T00:00:00"
   endtime: "2018-12-31T00:00:00"
   timestep: 10800
-  #running
   wflow_cfg_name: "wflow_sbm.toml"
   wflow_project_dir: "dir"
   wflow_threads: 1
