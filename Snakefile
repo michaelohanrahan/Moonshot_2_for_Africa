@@ -7,36 +7,23 @@ from scripts.helper import syscheck
 from scripts.helper import create_directories
 import os
 
-configfile: "snakeConfig.yml"
+configfile: "config/snakeConfig.yml"
 
 DRIVE=syscheck()
 
 # set the working directory
 os.chdir(Path(f'{DRIVE}/moonshot2-casestudy/Wflow/africa'))
 
-#Setup the data directories
-external = Path('data/1-external')
-external.mkdir(exist_ok=True, parents=True)
-#This directory will require some manual intervention: 
-# !looking here for a basin file to cluster
-
-interdir = Path('data/2-interim')
-interdir.mkdir(exist_ok=True, parents=True)
-
-indir = Path('data/3-input')
-indir.mkdir(exist_ok=True, parents=True)
-
-outdir = Path('data/4-output')
-outdir.mkdir(exist_ok=True, parents=True)
-
 dirs = create_directories(config)
-external, interdir, indir, outdir = dirs
+external, interdir, indir, outdir = dirs['external'], dirs['interim'], dirs['input'], dirs['output']
 
+# since the wildcard is not known at the start of the pipeline, we need to define a function to get the clusters
+def get_clusters(wildcards):return list(set(np.loadtxt(Path('data/2-interim/cluster_list.txt')).astype(int).tolist()))
 
-rule all:
-    input: expand(Path(outdir, model, '{cluster}', staticmaps, 'staticmaps.nc'), cluster=clusters)
+rule all: 
+    input: 
+        Path(outdir, 'models', '1716', 'staticmaps', 'staticmaps.nc')
 
-# Cluster basins
 rule clusterbasins:
     input: 
         basin_geojson = config['data']['basins']
@@ -48,17 +35,16 @@ rule clusterbasins:
         savefig = True,
         test_list = None, #can be None or list
         fill_rings = False
-    output:
-        cluster_out = Path('data/2-interim/dissolved_basins.geojson'),
-        clusters = np.load_txt(Path('data/2-interim/cluster_list.txt')).astype(int).tolist().unique()
+    output:models = expand(Path(outdir, 'models', '{cluster}'), cluster=f'{{cluster}}')
     script:
         "scripts/01_cluster_basins.py"
 
-# TODO: add the building rule
+#build models
 rule build_models:
     input:
-        basin_geojson = 'data/2-interim/dissolved_basins.geojson'
+        basin_geojson = 'data/2-interim/dissolved_basins.geojson',
+        model = lambda wildcards: expand(str(Path(outdir, 'models', '{cluster}')), cluster=get_clusters(wildcards))
     output:
-         expand(Path(outdir, model, '{cluster}', staticmaps, 'staticmaps.nc'), cluster=clusters)
+        grid = Path(outdir, 'models','{cluster}','staticmaps', 'staticmaps.nc')
     script:
         "scripts/02_hydromt_wflow_build.py"

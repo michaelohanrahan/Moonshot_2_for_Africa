@@ -300,7 +300,8 @@ if __name__ == "__main__":
             for item in ls:
                 if item not in [1893, 1892, 1025, 1784, 1031, 1027]:
                     f.write("%s\n" % item)
-
+                    os.makedirs(os.path.join(output_dir,'models', f'item'), exist_ok=True)
+        
         logging.info('Clustered basins saved to: %s', Path(os.path.join(interim_dir, 'clustered_basins.geojson')).as_posix())
         logging.info('Dissolved basins saved to: %s', Path(os.path.join(interim_dir, 'dissolved_basins.geojson')).as_posix())
     
