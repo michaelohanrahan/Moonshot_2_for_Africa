@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 ROOT = "c:/Users/hartgrin/OneDrive - Stichting Deltares/Projecten/Moonshot/Moonshot_2_for_Africa"
-ROOT = "z:/OneDrive - Stichting Deltares/Projecten/Moonshot/Moonshot_2_for_Africa/"
+# ROOT = "z:/OneDrive - Stichting Deltares/Projecten/Moonshot/Moonshot_2_for_Africa/"
 # global settings for Wflow model
 MODE = "w"
 BUILD_CONFIG = os.path.join(ROOT, "config/02_hydromt-build.yml")
@@ -22,7 +22,7 @@ WFLOW_ROOT = os.path.join(ROOT, "src/3-model/wflow_build") #TODO model locations
 # hard-coded input for testing
 BASIN_INDEX = 1761
 INDEX_COL = "fid"
-CLUSTERED_GEOMETRIES = os.path.join(ROOT, "data/2-interim/clustered_basins.geojson")
+CLUSTERED_GEOMETRIES = os.path.join(ROOT, "data/0-temp/clusters_test_dissolved.geojson")
 
 # possible to include resolution as parameter via snakemake
 # via RES = snakemake.params.resolution and set res=RES in create_model()
