@@ -1,20 +1,30 @@
-import os
+import geopandas as gpd
+from pathlib import Path
+from scripts.helper import syscheck
 
-cluster_method = "domain_method" #{domain_method, ...}
-crs = "EPSG:4326"
-basin_path = r"data\2-interim\GIS\basins_mainland_and_madagascar.geojson"
+DRIVE=syscheck()
+
+# set the working directory
+os.chdir(Path(f'{DRIVE}/moonshot2-casestudy/Wflow/africa'))
 
 rule all:
-    input: 
-        cluster_out = os.path.join('data', '2-interim', 'clustered', cluster_method+'.geojson')
+    input:
+        'data/2-interim/dissolved_basins.geojson'
 
+# Cluster basins
+#TODO: fix endhoreic basins
 rule clusterbasins:
     input: 
-        basin_path
+        basin_geojson = config['files']['basins']
     params: 
-        method = cluster_method,
-        crs = crs
+        crs = config['system']['crs'],
+        method = config['methods']['cluster'],
+        touches = config['methods']['touches'],
+        plot = False,
+        savefig = False,
+        test_list = None, #can be None or list
+        fill_rings = False
     output:
-        os.path.join('data', '2-interim', 'clustered', cluster_method+'.geojson')
-	script:
-		"scripts/01_cluster_basins.py"
+        cluster_out = Path('data/2-interim/dissolved_basins.geojson')
+    script:
+        "scripts/01_cluster_basins.py"
