@@ -43,10 +43,10 @@ except:
     basins = r"data\2-interim\GIS\basins_mainland_and_madagascar.geojson"
     cluster_method = "domain_method" #{domain_method, ...}
     intersect_method = "centroid" #{centroid, majority, ...}
-    savefig = True
+    savefig = False
     crs = "EPSG:4326"
-    plot = False
-    test = False
+    plot = True
+    test = True
     fill_rings = False
     test_list = None
     
@@ -56,6 +56,7 @@ logging.basicConfig(filename=Path(os.path.join('data', '0-log', f'cluster_basins
 logging.info('Working directory: %s', os.getcwd())
 
 interim_dir = Path(r'data\2-interim').as_posix()
+visualization_dir = Path(r'data\5-visualization').as_posix()
 
 #useful data 
 africa = gpd.read_file(Path(r"data\1-external\administrative\Africa.shp").as_posix(), driver='ESRI Shapefile')
@@ -243,7 +244,7 @@ if __name__ == "__main__":
         logging.info('Basins data loaded: %s', basins)
 
         sorted_basin_data = sort_by_area(basin_data).set_index('fid')
-
+        
         #map bbox to geometry column
         mapped_bbox = sorted_basin_data.bounds
         mapped_bbox['geometry'] = mapped_bbox.apply(lambda x: Polygon([(x.minx, x.miny), 
@@ -267,7 +268,10 @@ if __name__ == "__main__":
                                                                                     intersect_method, 
                                                                                     plot)
 
-        if plot==True:
+        if test_list is not None:
+            sorted_basin_data = sorted_basin_data[sorted_basin_data['cluster_id'].isin(test_list)]
+        
+        if plot:
             # Create a colormap
             colors = sns.color_palette('Set3', n_colors=len(sorted_basin_data['cluster_key'].unique()))
             cmap = ListedColormap(colors)
@@ -277,12 +281,16 @@ if __name__ == "__main__":
             ax.set_title(f'clustered by {cluster_method}, n = {n_clusters} clusters')
 
             if savefig:
-                plt.savefig(Path(os.path.join(interim_dir, 'clustered_basins.png')).as_posix(), dpi=400)
+                plt.savefig(Path(os.path.join(visualization_dir, 'clustered_basins.png')).as_posix(), dpi=400)
 
         sorted_basin_data.to_file(Path(os.path.join(interim_dir, 'clustered_basins.geojson')).as_posix(), driver='GeoJSON')
 
+        #Dissolve to simple polygons. Sort the values so the output text file is ordered by area
         diss = dissolve(sorted_basin_data, by='cluster_key', test_list=test_list)
-        diss = diss['geometry'].apply(to_polygon)
+        diss['geometry'] = diss['geometry'].apply(to_polygon)
+        diss = diss.to_crs(crs)
+        diss['area_km2'] = diss.area / 1e6
+        diss = diss.sort_values(by='area_km2', ascending=False) 
 
         diss.to_file(Path(os.path.join(interim_dir, 'dissolved_basins.geojson')).as_posix(), driver='GeoJSON')
 
@@ -290,7 +298,8 @@ if __name__ == "__main__":
         
         with open(Path(os.path.join(interim_dir, 'cluster_list.txt')).as_posix(), 'w') as f:
             for item in ls:
-                f.write("%s\n" % item)
+                if item not in [1893, 1892, 1025, 1784, 1031, 1027]:
+                    f.write("%s\n" % item)
 
         logging.info('Clustered basins saved to: %s', Path(os.path.join(interim_dir, 'clustered_basins.geojson')).as_posix())
         logging.info('Dissolved basins saved to: %s', Path(os.path.join(interim_dir, 'dissolved_basins.geojson')).as_posix())
