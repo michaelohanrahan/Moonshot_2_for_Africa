@@ -38,9 +38,10 @@ def get_catalog() -> str:
         raise SystemError(f"operating system {platform} not supported by this script")
     return path_catalog
 
-def get_root(prefix=None) -> str:
-    root = os.path.join(WFLOW_ROOT, f"{prefix}{BASIN_INDEX}")
-    return root
+def get_root(index: int, prefix=None) -> str:
+    root = f"{prefix}{index}" if prefix else f"{index}
+    full_root = os.path.join(WFLOW_ROOT, root)
+    return full_root
 
 def get_geom(index: int, all_geoms: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     geom = all_geoms[all_geoms[INDEX_COL] == index]
