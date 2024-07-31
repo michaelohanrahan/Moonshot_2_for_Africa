@@ -7,7 +7,10 @@ import os
 from hydromt.log import setuplog
 logger = setuplog("Moonshot 2 - Africa", log_level=10)
 
+# hard-coded input for testing
 ROOT = "/p/moonshot2-casestudy/Wflow/africa/"
+INDEX_COL = "cluster_key"
+CLUSTERED_GEOMETRIES = os.path.join(ROOT, "data/2-interim/dissolved_basins.geojson")
 
 # global settings for Wflow model
 MODE = "w"
@@ -16,16 +19,7 @@ FORCING_CONFIG = os.path.join(ROOT, "config/02_hydromt-update-era5.yml")
 WFLOW_ROOT = os.path.join(ROOT, "src/3-model/wflow_build") #TODO model locations?
 
 # snakemake input
-# BASIN_INDEX = snakemake.wildcards.basin_index
 # CLUSTERED_GEOMETRIES = snakemake.params.clustered_geometries
-
-# hard-coded input for testing
-BASIN_INDEX = 1844
-INDEX_COL = "cluster_key"
-CLUSTERED_GEOMETRIES = os.path.join(ROOT, "data/2-interim/dissolved_basins.geojson")
-
-# possible to include resolution as parameter via snakemake
-# via RES = snakemake.params.resolution and set res=RES in create_model()
 
 def get_catalog() -> str:
     from sys import platform
