@@ -8,7 +8,12 @@ from hydromt.log import setuplog
 logger = setuplog("Moonshot 2 - Africa", log_level=10)
 
 # hard-coded input for testing
-ROOT = "/p/moonshot2-casestudy/Wflow/africa/"
+from sys import platform
+if platform == "linux" or platform == "linux2":
+    ROOT = "/p/moonshot2-casestudy/Wflow/africa/"
+elif platform == "win32":
+    ROOT = "p:/moonshot2-casestudy/Wflow/africa/"
+
 INDEX_COL = "cluster_key"
 CLUSTERED_GEOMETRIES = os.path.join(ROOT, "data/2-interim/dissolved_basins.geojson")
 
@@ -65,7 +70,7 @@ if __name__ == "__main__":
     for i, basin_id in enumerate(basin_ids):
         logger.info(f"CUSTOM: processing basin id {basin_id} ({i + 1}/{len(basin_ids)})")
         logger.info(f"CUSTOM: creating root linked to basin id {basin_id}")
-        root = get_root()
+        root = get_root(index=basin_id)
         logger.info(f"CUSTOM: reading geometry file and finding geom with index {basin_id}")
         geom = get_geom(index=basin_id, all_geoms=clustered_basins)
         logger.info(f"CUSTOM: start initializing and building Wflow model with index {basin_id}")
