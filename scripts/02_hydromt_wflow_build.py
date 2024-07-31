@@ -7,12 +7,12 @@ import os
 from hydromt.log import setuplog
 logger = setuplog("Moonshot 2 - Africa", log_level=10)
 
-# ROOT = "c:/Users/hartgrin/OneDrive - Stichting Deltares/Projecten/Moonshot/Moonshot_2_for_Africa"
-ROOT = "z:/OneDrive - Stichting Deltares/Projecten/Moonshot/Moonshot_2_for_Africa/"
+ROOT = "/p/moonshot2-casestudy/Wflow/africa/"
 
 # global settings for Wflow model
 MODE = "w"
 BUILD_CONFIG = os.path.join(ROOT, "config/02_hydromt-build-full.yml")
+FORCING_CONFIG = os.path.join(ROOT, "config/02_hydromt-update-era5.yml")
 WFLOW_ROOT = os.path.join(ROOT, "src/3-model/wflow_build") #TODO model locations?
 
 # snakemake input
@@ -30,8 +30,8 @@ CLUSTERED_GEOMETRIES = os.path.join(ROOT, "data/0-temp/clusters_test_dissolved.g
 def get_catalog() -> str:
     from sys import platform
     if platform == "linux" or platform == "linux2":
-        #path_catalog = "/p/something/deltares_data_linux.yml"?
-        raise NotImplementedError("Linux data catalog not yet implemented in this script")
+        path_catalog = "/p/moonshot2-casestudy/Wflow/africa/config/deltares_data_custom.yml"
+        # raise NotImplementedError("Linux data catalog not yet implemented in this script") TODO remove from code when it works properly
     elif platform == "win32":
         path_catalog = "p:/wflow_global/hydromt/deltares_data.yml"
     else:
@@ -61,7 +61,7 @@ def create_model(root: str, geom: gpd.GeoDataFrame, uparea: float = 1, res: floa
     region = {"basin": geom, "uparea": uparea}
     # build model using geometry file linked to basin ID
     w.build(region=region, write=True, opt=config)
-    return
+    return w
 
 if __name__ == "__main__":
     logger.info(f"CUSTOM: creating root linked to basin id {BASIN_INDEX}")
@@ -69,4 +69,6 @@ if __name__ == "__main__":
     logger.info(f"CUSTOM: reading geometry file and finding geom with index {BASIN_INDEX}")
     geom = get_geom()
     logger.info(f"CUSTOM: start initializing and building Wflow model!")
-    create_model(root=root, geom=geom)
+    w = create_model(root=root, geom=geom)
+    config_forcing = hydromt.config.configread(config_fn=FORCING_CONFIG)
+    w.update(write=True, opt=config_forcing)
