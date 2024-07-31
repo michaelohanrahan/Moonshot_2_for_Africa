@@ -33,7 +33,7 @@ def get_catalog() -> str:
     return path_catalog
 
 def get_root(index: int, prefix=None) -> str:
-    root = f"{prefix}{index}" if prefix else f"{index}
+    root = f"{prefix}{index}" if prefix else f"{index}"
     full_root = os.path.join(WFLOW_ROOT, root)
     return full_root
 
