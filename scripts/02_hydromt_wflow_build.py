@@ -72,6 +72,6 @@ if __name__ == "__main__":
         logger.info(f"CUSTOM: creating root linked to basin id {basin_id}")
         root = get_root()
         logger.info(f"CUSTOM: reading geometry file and finding geom with index {basin_id}")
-        geom = get_geom()
+        geom = get_geom(index=basin_id, all_geoms=clustered_basins)
         logger.info(f"CUSTOM: start initializing and building Wflow model with index {basin_id}")
         create_model(root=root, geom=geom)
