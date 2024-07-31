@@ -45,36 +45,16 @@ setup_lakes:
 setup_glaciers:
   glaciers_fn: rgi           # source for glaciers based on Randolph Glacier Inventory {rgi}
   min_area: 1.0           # minimum glacier area to consider [km2]
-
-setup_config:
-  input.path_static: staticmaps-0-basemaps.nc
-  
-write_grid:
-
+ 
 setup_lulcmaps:
   lulc_fn : globcover     # source for lulc maps: {globcover, vito, corine}
-
-setup_config1:
-  input.path_static: staticmaps-1-lulc.nc
-
-write_grid1:
 
 setup_laimaps:
   lai_fn: modis_lai     # source for LAI: {modis_lai}
 
-setup_config2:
-  input.path_static: staticmaps-2-lai.nc
-
-write_grid2:
-
 setup_soilmaps:
   soil_fn: soilgrids     # source for soilmaps: {soilgrids}
   ptf_ksatver: brakensiek    # pedotransfer function to calculate hydraulic conductivity: {brakensiek, cosby}
-
-setup_config3:
-  input.path_static: staticmaps-3-soil.nc
-
-write_grid3:
 
 setup_outlets:
   river_only: True
@@ -100,8 +80,3 @@ setup_constant_pars:
   G_Cfmax: 5.3
   G_SIfrac: 0.002
   G_TT: 1.3
-
-write_grid4:
-
-setup_config4:
-  input.path_static: staticmaps-4-complete.nc
