@@ -1,5 +1,6 @@
 
 import geopandas as gpd
+import pandas as pd
 from shapely.geometry import Polygon
 from shapely.geometry import MultiPolygon
 import matplotlib.pyplot as plt
@@ -38,17 +39,19 @@ try:
     
     
 except:
-    os.chdir('p:/moonshot2-casestudy/Wflow/africa')
+    os.chdir('c:/Users/hartgrin/OneDrive - Stichting Deltares/Projecten/Moonshot/Moonshot_2_for_Africa')
+    # os.chdir('p:/moonshot2-casestudy/Wflow/africa')
     logging.info('No snakemake object found, using default params...')
     basins = r"data\2-interim\GIS\basins_mainland_and_madagascar.geojson"
     cluster_method = "domain_method" #{domain_method, ...}
     intersect_method = "centroid" #{centroid, majority, ...}
     savefig = False
     crs = "EPSG:4326"
-    plot = True
+    plot = False
     test = True
     fill_rings = False
     test_list = None
+    minimum_area = 0.001
     
 #create logger
 logger = logging.getLogger(__name__)
@@ -291,6 +294,20 @@ if __name__ == "__main__":
         diss = diss.to_crs(crs)
         diss['area_km2'] = diss.area / 1e6
         diss = diss.sort_values(by='area_km2', ascending=False) 
+
+        # Merge clusters below threshold into their neighbours
+        if minimum_area:
+            threshold_area = minimum_area * float(diss['area_km2'].max())
+
+            # Separate the small clusters from diss based on threshold area
+            small_polygons = diss[diss['area_km2'] <= threshold_area]
+            diss = diss[diss['area_km2'] > threshold_area]
+            
+            # Loop through small clusters, find id of closest neighbour and merge
+            for _, small_polygon in small_polygons.iterrows():
+                distances = diss.geometry.apply(lambda geom: small_polygon.geometry.distance(geom))
+                id_closest = distances.idxmin()
+                diss.at[id_closest, 'geometry'] = diss.at[id_closest, 'geometry'].union(small_polygon['geometry'])
 
         diss.to_file(Path(os.path.join(interim_dir, 'dissolved_basins.geojson')).as_posix(), driver='GeoJSON')
 
