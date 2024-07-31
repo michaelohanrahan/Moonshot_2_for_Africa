@@ -52,6 +52,8 @@ except:
     fill_rings = False
     test_list = None
     minimum_area = 0.001
+    recursive = None
+    
     
 #create logger
 logger = logging.getLogger(__name__)
@@ -86,7 +88,7 @@ def sort_by_area(basins: gpd.GeoDataFrame):
         except:
             exit(1)
 
-#function that retruns rules based intersecting basins
+#function that returns rules based intersecting basins
 def intersecting(bbox, targets, method='centroid'):
     if method == 'centroid':
         # Convert to a projected CRS before calculating centroid
@@ -98,47 +100,60 @@ def intersecting(bbox, targets, method='centroid'):
     return intersecting_indices
 
 # cluster basins
-def cluster_basins(sorted_basin_data, mapped_bbox, filled_data, intersect_method, plot=False):
-            filled_data['cluster_id'] = None
+def cluster_basins(sorted_basin_data, filled_data, intersect_method, plot=False):
+    #map bbox to geometry column
+    mapped_bbox = sorted_basin_data.bounds
+    mapped_bbox['geometry'] = mapped_bbox.apply(lambda x: Polygon([(x.minx, x.miny), 
+                                                            (x.minx, x.maxy), 
+                                                            (x.maxx, x.maxy), 
+                                                            (x.maxx, x.miny)]), axis=1)
+    clustered_basins = gpd.GeoDataFrame(
+        index=sorted_basin_data.index,
+        columns=['cluster_key'],
+        crs=sorted_basin_data.crs,
+        geometry=sorted_basin_data.geometry)
+    filled_data['cluster_id'] = None
 
-            clustered = set()
-            cluster_dict = {}
+    clustered = set()
+    cluster_dict = {}
 
-            for n, i in enumerate(sorted_basin_data.index):
-                try:
-                    if i in clustered:
-                        continue
+    for n, i in enumerate(sorted_basin_data.index):
+        try:
+            if i in clustered:
+                continue
 
-                    # Mask the gdf by the growing cluster set
-                    if len(clustered) > 0:
-                        filled_data = filled_data.loc[~filled_data.index.isin(clustered)] 
+            # Mask the gdf by the growing cluster set
+            if len(clustered) > 0:
+                filled_data = filled_data.loc[~filled_data.index.isin(clustered)] 
 
-                    logging.info('Basin: %s', i)
-                    basin = sorted_basin_data.loc[i]
-                    bbox = mapped_bbox.loc[i]
+            logging.info('Basin: %s', i)
+            basin = sorted_basin_data.loc[i]
+            bbox = mapped_bbox.loc[i]
 
-                    cluster = intersecting(bbox['geometry'], filled_data, intersect_method)
+            cluster = intersecting(bbox['geometry'], filled_data, intersect_method)
 
-                    logging.info('(i, len(cluster)) %s', (i,len(cluster)))
+            logging.info('(i, len(cluster)) %s', (i,len(cluster)))
 
 
-                    # Update 'cluster_id' in both 'sorted_basin_data' and 'filled_data'
-                    sorted_basin_data.loc[cluster, 'cluster_id'] = i
-                    filled_data.loc[cluster, 'cluster_id'] = i
+            # Update 'cluster_id' in both 'sorted_basin_data' and 'filled_data'
+            sorted_basin_data.loc[cluster, 'cluster_id'] = i
+            filled_data.loc[cluster, 'cluster_id'] = i
 
-                    if plot==True:
-                        plot_basins(basin, bbox, filled_data.loc[cluster])
+            if plot==True:
+                plot_basins(basin, bbox, filled_data.loc[cluster])
 
-                    clustered.add(i)
-                    clustered.update(cluster)
-                    cluster_dict[i] = cluster
-                except AttributeError as e:
-                    logging.error('Error: %s', e)
-                    continue
+            clustered.add(i)
+            clustered.update(cluster)
+            cluster_dict[i] = cluster
+        except AttributeError as e:
+            logging.error('Error: %s', e)
+            continue
+    clustered_basins['cluster_key'] = sorted_basin_data.index.to_series().apply(find_key, args=(cluster_dict,))
+    
+    #Dissolve to simple polygons. Sort the values so the output text file is ordered by area
+    dissolved_basins = dissolve(clustered_basins, by='cluster_key', test_list=test_list)
 
-            sorted_basin_data['cluster_key'] = sorted_basin_data.index.to_series().apply(find_key, args=(cluster_dict,))
-            
-            return sorted_basin_data, cluster_dict, filled_data, cluster_dict
+    return clustered_basins, dissolved_basins, cluster_dict, filled_data
 
 #function for test plotting
 def plot_basins(basin: gpd.GeoDataFrame, #The basin that made the cluster
@@ -159,7 +174,7 @@ def plot_basins(basin: gpd.GeoDataFrame, #The basin that made the cluster
     plt.show()
 
 #function for filling rings in the basins dataset
-def fill_rings(basins):
+def fill_basins_rings(basins):
     '''
     Iterate the basins. If the geometry is a Polygon, extract the interior rings and create new polygons.
     If the geometry is a MultiPolygon, extract the interior rings and create new polygons.
@@ -211,6 +226,21 @@ def fill_rings(basins):
 
     return basins
 
+def area_threshold_merge(minimum_area, gdf):
+    # Merge clusters below threshold into their neighbours
+    threshold_area = minimum_area * float(gdf['area_km2'].max())
+
+    # Separate the small clusters from diss based on threshold area
+    small_polygons = gdf[gdf['area_km2'] <= threshold_area]
+    gdf = gdf[gdf['area_km2'] > threshold_area]
+    
+    # Loop through small clusters, find id of closest neighbour and merge
+    for _, small_polygon in small_polygons.iterrows():
+        distances = gdf.geometry.apply(lambda geom: small_polygon.geometry.distance(geom))
+        id_closest = distances.idxmin()
+        gdf.at[id_closest, 'geometry'] = gdf.at[id_closest, 'geometry'].union(small_polygon['geometry'])
+    return gdf
+
 # lambda over the gdf to fill the column from the dict
 def find_key(index, cluster_dict):
     for key, values in cluster_dict.items():
@@ -221,7 +251,12 @@ def find_key(index, cluster_dict):
 def dissolve(gdf, by='cluster_id', test_list=None):
     if test_list is not None:
         gdf = gdf[gdf.cluster_id.isin(test_list)]
-    return gdf.dissolve(by=by)
+    gdf = gdf.dissolve(by=by)
+    gdf['geometry'] = gdf['geometry'].apply(to_polygon)
+    gdf = gdf.to_crs(crs)
+    gdf['area_km2'] = gdf.area
+    gdf = gdf.sort_values(by='area_km2', ascending=False) 
+    return gdf
 
 def to_polygon(geom):
     if geom.geom_type == 'Polygon':
@@ -248,30 +283,21 @@ if __name__ == "__main__":
 
         sorted_basin_data = sort_by_area(basin_data).set_index('fid')
         
-        #map bbox to geometry column
-        mapped_bbox = sorted_basin_data.bounds
-        mapped_bbox['geometry'] = mapped_bbox.apply(lambda x: Polygon([(x.minx, x.miny), 
-                                                                    (x.minx, x.maxy), 
-                                                                    (x.maxx, x.maxy), 
-                                                                    (x.maxx, x.miny)]), axis=1)
-        #now a geodataframe of bboxes
-        bbox_gdf = gpd.GeoDataFrame(mapped_bbox, crs=crs)
-
         #fill rings
         filled_data = sorted_basin_data.copy()
 
         #test fill rings
-        if fill_rings == True:
-            filled_data = fill_rings(sorted_basin_data)
+        if fill_rings:
+            filled_data = fill_basins_rings(sorted_basin_data)
 
         # Call the cluster_basins function
-        sorted_basin_data, cluster_dict, filled_data, cluster_dict = cluster_basins(sorted_basin_data, 
-                                                                                    mapped_bbox, 
-                                                                                    filled_data, 
-                                                                                    intersect_method, 
-                                                                                    plot)
+        sorted_basin_data, diss, cluster_dict, filled_data = cluster_basins(
+                                                                    sorted_basin_data, 
+                                                                    filled_data, 
+                                                                    intersect_method, 
+                                                                    plot)
 
-        if test_list is not None:
+        if test_list:
             sorted_basin_data = sorted_basin_data[sorted_basin_data['cluster_id'].isin(test_list)]
         
         if plot:
@@ -288,26 +314,8 @@ if __name__ == "__main__":
 
         sorted_basin_data.to_file(Path(os.path.join(interim_dir, 'clustered_basins.geojson')).as_posix(), driver='GeoJSON')
 
-        #Dissolve to simple polygons. Sort the values so the output text file is ordered by area
-        diss = dissolve(sorted_basin_data, by='cluster_key', test_list=test_list)
-        diss['geometry'] = diss['geometry'].apply(to_polygon)
-        diss = diss.to_crs(crs)
-        diss['area_km2'] = diss.area / 1e6
-        diss = diss.sort_values(by='area_km2', ascending=False) 
-
-        # Merge clusters below threshold into their neighbours
         if minimum_area:
-            threshold_area = minimum_area * float(diss['area_km2'].max())
-
-            # Separate the small clusters from diss based on threshold area
-            small_polygons = diss[diss['area_km2'] <= threshold_area]
-            diss = diss[diss['area_km2'] > threshold_area]
-            
-            # Loop through small clusters, find id of closest neighbour and merge
-            for _, small_polygon in small_polygons.iterrows():
-                distances = diss.geometry.apply(lambda geom: small_polygon.geometry.distance(geom))
-                id_closest = distances.idxmin()
-                diss.at[id_closest, 'geometry'] = diss.at[id_closest, 'geometry'].union(small_polygon['geometry'])
+            diss = area_threshold_merge(minimum_area, diss)
 
         diss.to_file(Path(os.path.join(interim_dir, 'dissolved_basins.geojson')).as_posix(), driver='GeoJSON')
 
