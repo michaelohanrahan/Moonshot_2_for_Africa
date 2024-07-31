@@ -20,9 +20,9 @@ WFLOW_ROOT = os.path.join(ROOT, "src/3-model/wflow_build") #TODO model locations
 # CLUSTERED_GEOMETRIES = snakemake.params.clustered_geometries
 
 # hard-coded input for testing
-BASIN_INDEX = 1761
-INDEX_COL = "fid"
-CLUSTERED_GEOMETRIES = os.path.join(ROOT, "data/0-temp/clusters_test_dissolved.geojson")
+BASIN_INDEX = 1844
+INDEX_COL = "cluster_key"
+CLUSTERED_GEOMETRIES = os.path.join(ROOT, "data/2-interim/dissolved_basins.geojson")
 
 # possible to include resolution as parameter via snakemake
 # via RES = snakemake.params.resolution and set res=RES in create_model()
@@ -42,9 +42,8 @@ def get_root(prefix=None) -> str:
     root = os.path.join(WFLOW_ROOT, f"{prefix}{BASIN_INDEX}")
     return root
 
-def get_geom() -> gpd.GeoDataFrame:
-    all_geoms = gpd.read_file(CLUSTERED_GEOMETRIES)
-    geom = all_geoms[all_geoms[INDEX_COL] == BASIN_INDEX]
+def get_geom(index: int, all_geoms: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    geom = all_geoms[all_geoms[INDEX_COL] == index]
     geom = geom.explode() #MULTIPOLYGON to POLYGON, TODO remove when no longer necessary
     return geom
 
@@ -64,11 +63,15 @@ def create_model(root: str, geom: gpd.GeoDataFrame, uparea: float = 1, res: floa
     return w
 
 if __name__ == "__main__":
-    logger.info(f"CUSTOM: creating root linked to basin id {BASIN_INDEX}")
-    root = get_root(prefix="test_")
-    logger.info(f"CUSTOM: reading geometry file and finding geom with index {BASIN_INDEX}")
-    geom = get_geom()
-    logger.info(f"CUSTOM: start initializing and building Wflow model!")
-    w = create_model(root=root, geom=geom)
-    config_forcing = hydromt.config.configread(config_fn=FORCING_CONFIG)
-    w.update(write=True, opt=config_forcing)
+    logger.info(f"CUSTOM: reading geometry file with all basins")
+    clustered_basins = gpd.read_file(CLUSTERED_GEOMETRIES)
+    basin_ids = list(clustered_basins[INDEX_COL])
+    logger.info(f"CUSTOM: geometry file contains {len(basin_ids)} basins")
+    for i, basin_id in enumerate(basin_ids):
+        logger.info(f"CUSTOM: processing basin id {basin_id} ({i + 1}/{len(basin_ids)})")
+        logger.info(f"CUSTOM: creating root linked to basin id {basin_id}")
+        root = get_root()
+        logger.info(f"CUSTOM: reading geometry file and finding geom with index {basin_id}")
+        geom = get_geom()
+        logger.info(f"CUSTOM: start initializing and building Wflow model with index {basin_id}")
+        create_model(root=root, geom=geom)
