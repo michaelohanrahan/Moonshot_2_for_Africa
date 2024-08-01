@@ -51,8 +51,8 @@ except:
     test = True
     fill_rings = False
     test_list = None
-    minimum_area = 0.001
-    recursive = None
+    minimum_area = None # 0.001
+    recursive = 2
     
     
 #create logger
@@ -292,10 +292,20 @@ if __name__ == "__main__":
 
         # Call the cluster_basins function
         sorted_basin_data, diss, cluster_dict, filled_data = cluster_basins(
-                                                                    sorted_basin_data, 
-                                                                    filled_data, 
-                                                                    intersect_method, 
-                                                                    plot)
+                                                                        sorted_basin_data, 
+                                                                        filled_data, 
+                                                                        intersect_method, 
+                                                                        plot)
+        
+        if recursive:
+            # we have already had one loop so no range (recursive + 1) needed
+            for i in range(recursive):
+                diss = diss.reset_index()
+                sorted_basin_data, diss, cluster_dict, filled_data = cluster_basins(
+                                                                        diss, 
+                                                                        diss.copy(), 
+                                                                        intersect_method, 
+                                                                        plot)
 
         if test_list:
             sorted_basin_data = sorted_basin_data[sorted_basin_data['cluster_id'].isin(test_list)]
