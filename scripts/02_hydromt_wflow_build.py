@@ -1,7 +1,8 @@
+import datetime
+import os
 from hydromt_wflow import WflowModel
 import hydromt
 import geopandas as gpd
-import os
 
 # setup logging
 from hydromt.log import setuplog
@@ -25,6 +26,11 @@ WFLOW_ROOT = os.path.join(ROOT, "src/3-model/wflow_build") #TODO model locations
 
 # snakemake input
 # CLUSTERED_GEOMETRIES = snakemake.params.clustered_geometries
+
+def log_basin_id(basin_id: int, log_file: str):
+    with open(log_file, 'a') as file:
+        log_entry = f"Failed basin id {basin_id}: {datetime.datetime.now()}\n"
+        file.write(log_entry)
 
 def get_catalog() -> str:
     from sys import platform
@@ -63,6 +69,10 @@ def create_model(root: str, geom: gpd.GeoDataFrame, uparea: float = 1, res: floa
     return w
 
 if __name__ == "__main__":
+    log_failed = os.path.join(WFLOW_ROOT, "failed_builds.log")
+    with open(log_failed, 'w') as file:
+        file.write('')
+
     logger.info(f"CUSTOM: reading geometry file with all basins")
     clustered_basins = gpd.read_file(CLUSTERED_GEOMETRIES)
     basin_ids = list(clustered_basins[INDEX_COL])
@@ -73,5 +83,9 @@ if __name__ == "__main__":
         root = get_root(index=basin_id)
         logger.info(f"CUSTOM: reading geometry file and finding geom with index {basin_id}")
         geom = get_geom(index=basin_id, all_geoms=clustered_basins)
-        logger.info(f"CUSTOM: start initializing and building Wflow model with index {basin_id}")
-        create_model(root=root, geom=geom)
+        try:
+            logger.info(f"CUSTOM: start initializing and building Wflow model with index {basin_id}")
+            create_model(root=root, geom=geom)
+        except Exception as e:
+            logger.error(f"Error processing basin id {basin_id}: {e}")
+            log_basin_id(basin_id)
