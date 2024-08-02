@@ -88,4 +88,4 @@ if __name__ == "__main__":
             create_model(root=root, geom=geom)
         except Exception as e:
             logger.error(f"Error processing basin id {basin_id}: {e}")
-            log_basin_id(basin_id)
+            log_basin_id(basin_id, log_failed)
