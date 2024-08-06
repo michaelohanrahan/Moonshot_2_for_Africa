@@ -86,14 +86,3 @@ setup_constant_pars:
   G_Cfmax: 5.3
   G_SIfrac: 0.002
   G_TT: 1.3
-  
-setup_precip_forcing:
-  precip_fn: era5          # source for precipitation.
-
-setup_temp_pet_forcing:
-  temp_pet_fn: era5          # source for temperature and potential evapotranspiration.
-  press_correction: True          # if True temperature is corrected with elevation lapse rate.
-  temp_correction: True          # if True pressure is corrected with elevation lapse rate.
-  dem_forcing_fn: era5_orography # source of elevation grid corresponding to temp_pet_fn. Used for lapse rate correction.
-  pet_method: debruin       # method to compute PET: {debruin, makkink}
-  skip_pet: False         # if True, only temperature is prepared.
