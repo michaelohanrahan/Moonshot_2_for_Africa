@@ -117,10 +117,6 @@ if __name__ == "__main__":
         parser.add_argument('--tmax', type=str, help='the end time for the PET forcing %Y-%m-%d', default=None)
         args = parser.parse_args()
         
-        # if len(args.bbox) != 4 or args.bbox is None:
-        #     l.error("Bounding box must have 4 values in a list or tuple")
-        #     raise ValueError("Bounding box must have 4 values in a list or tuple")
-
         if args.tpf is None:
             l.error("Temperature forcing must be provided")
             raise ValueError("Temperature forcing must be provided")
