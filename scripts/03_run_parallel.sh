@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=ms2_cluster_$SLURM_ARRAY_TASK_ID
+#SBATCH --job-name=ms2_cluster
 #SBATCH --cpus-per-task=2
 #SBATCH --partition test
 #SBATCH --array=1-5

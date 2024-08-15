@@ -15,7 +15,6 @@ Example code to run in the batch script for 4 clusters on the test nodes (2 thre
 #SBATCH --mail-type=end
 #SBATCH --mail-user=sebastian.hartgring@deltares.nl
   
-module load julia
 julia -t $SLURM_CPUS_PER_TASK 03_run_cluster.jl $SLURM_ARRAY_TASK_ID
 =#
 
@@ -27,12 +26,12 @@ folders = filter(item -> isdir(joinpath(path_clusters, item)), items)
 clusters = sort(parse.(Int, folders))
 
 # Find cluster i of 1 ... N to run
-i = parse.(Int,only(ARGS))
+i = parse.(Int, only(ARGS))
 cluster = clusters[i]
-println("processing cluster $i with id $cluster")
+config = joinpath(path_clusters, string(cluster), "wflow_sbm.toml")
+println("processing cluster $i with id $cluster and config $config")
 
 # Run Wflow with on-the-fly forcing using script.
 path_run_wflow = joinpath("/p/moonshot2-casestudy/Wflow/africa/scripts/03_run_wflow_interp_080.jl")
-config = joinpath(path_clusters, string(cluster), "wflow_sbm.toml")
 include(path_run_wflow)
 run(config)
