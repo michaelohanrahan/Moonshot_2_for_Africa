@@ -2,7 +2,7 @@
 #SBATCH --job-name=ms2_cluster_$SLURM_ARRAY_TASK_ID
 #SBATCH --cpus-per-task=2
 #SBATCH --partition test
-#SBATCH --array=1-4
+#SBATCH --array=1-5
 #SBATCH --mail-type=begin
 #SBATCH --mail-type=end
 #SBATCH --mail-user=sebastian.hartgring@deltares.nl

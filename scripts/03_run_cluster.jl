@@ -2,7 +2,7 @@
 This script is used to run Wflow clusters in parallel on the cluster.
 Example used from h7 wiki: https://publicwiki.deltares.nl/display/Deltareken/Example%3A+Using+Julia+in+parallel.
 The batch script runs this script and provides an argument $SLURM_ARRAY_TASK_ID which corresponds to the i-th cluster that we want to run.
-To run clusters i = 1 to N, we have to provide the keyword array=1-N.
+To run clusters i = 1 to N, we have to provide the keyword array=1-N+1.
 
 Example code to run in the batch script for 4 clusters on the test nodes (2 threads per Wflow run):
 
@@ -10,7 +10,7 @@ Example code to run in the batch script for 4 clusters on the test nodes (2 thre
 #SBATCH --job-name=ms2_cluster_$SLURM_ARRAY_TASK_ID
 #SBATCH --cpus-per-task=2
 #SBATCH --partition test
-#SBATCH --array=1-4
+#SBATCH --array=1-5
 #SBATCH --mail-type=begin
 #SBATCH --mail-type=end
 #SBATCH --mail-user=sebastian.hartgring@deltares.nl
@@ -23,7 +23,7 @@ julia -t $SLURM_CPUS_PER_TASK 03_run_cluster.jl $SLURM_ARRAY_TASK_ID
 # Convert to Int to sort by value, not lexicographically.
 path_clusters = joinpath("/p/moonshot2-casestudy/Wflow/africa/src/3-model/wflow_build")
 items = readdir(path_clusters)
-folders = filter(item -> isdir(joinpath(path_to_clusters, item)), items)
+folders = filter(item -> isdir(joinpath(path_clusters, item)), items)
 clusters = sort(parse.(Int, folders))
 cluster = clusters[ARGS[1]]
 
