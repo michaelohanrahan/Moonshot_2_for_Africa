@@ -286,7 +286,7 @@ function run_custom_regrid(config::Wflow.Config)
 end
 
 """
-Adapted from v0.7.1, but link to the custom_regrid function
+Adapted from v0.8.0, but link to the custom_regrid function
 """
 function run(tomlpath::AbstractString; silent=nothing)
     config = Wflow.Config(tomlpath)
@@ -316,5 +316,3 @@ function run(tomlpath::AbstractString; silent=nothing)
         end
     end
 end
-
-run(ARGS[1])
