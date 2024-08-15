@@ -27,7 +27,7 @@ folders = filter(item -> isdir(joinpath(path_clusters, item)), items)
 clusters = sort(parse.(Int, folders))
 
 # Find cluster i of 1 ... N to run
-i = only(ARGS)
+i = parse.(Int,only(ARGS))
 cluster = clusters[i]
 println("processing cluster $i with id $cluster")
 
