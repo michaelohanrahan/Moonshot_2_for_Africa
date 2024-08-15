@@ -29,6 +29,7 @@ clusters = sort(parse.(Int, folders))
 # Find cluster i of 1 ... N to run
 i = only(ARGS)
 cluster = clusters[i]
+println("processing cluster $i with id $cluster")
 
 # Run Wflow with on-the-fly forcing using script.
 path_run_wflow = joinpath("/p/moonshot2-casestudy/Wflow/africa/scripts/03_run_wflow_interp_080.jl")
