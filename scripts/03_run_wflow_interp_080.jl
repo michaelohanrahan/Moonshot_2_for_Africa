@@ -316,5 +316,3 @@ function run(tomlpath::AbstractString; silent=nothing)
         end
     end
 end
-
-run(ARGS[1])

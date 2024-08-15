@@ -18,9 +18,17 @@ Example code to run in the batch script for 4 clusters on the test nodes (2 thre
 julia -t $SLURM_CPUS_PER_TASK 03_run_cluster.jl $SLURM_ARRAY_TASK_ID
 =#
 
+# Paths for Windows and Linux
+if Sys.iswindows()
+    path_clusters = "p:/moonshot2-casestudy/Wflow/africa/src/3-model/wflow_build"
+    path_run_wflow = "p:/moonshot2-casestudy/Wflow/africa/scripts/03_run_wflow_interp_080.jl"
+elseif Sys.islinux()
+    path_clusters = "/p/moonshot2-casestudy/Wflow/africa/src/3-model/wflow_build"
+    path_run_wflow = "/p/moonshot2-casestudy/Wflow/africa/scripts/03_run_wflow_interp_080.jl"
+end
+
 # Get all clusters in the directory, filter out any non-directories.
 # Convert to Int to sort by value, not lexicographically.
-path_clusters = joinpath("/p/moonshot2-casestudy/Wflow/africa/src/3-model/wflow_build")
 items = readdir(path_clusters)
 folders = filter(item -> isdir(joinpath(path_clusters, item)), items)
 clusters = sort(parse.(Int, folders))
@@ -32,6 +40,5 @@ config = joinpath(path_clusters, string(cluster), "wflow_sbm.toml")
 println("processing cluster $i with id $cluster and config $config")
 
 # Run Wflow with on-the-fly forcing using script.
-path_run_wflow = joinpath("/p/moonshot2-casestudy/Wflow/africa/scripts/03_run_wflow_interp_080.jl")
 include(path_run_wflow)
 run(config)
