@@ -25,7 +25,10 @@ path_clusters = joinpath("/p/moonshot2-casestudy/Wflow/africa/src/3-model/wflow_
 items = readdir(path_clusters)
 folders = filter(item -> isdir(joinpath(path_clusters, item)), items)
 clusters = sort(parse.(Int, folders))
-cluster = clusters[ARGS[1]]
+
+# Find cluster i of 1 ... N to run
+i = only(ARGS)
+cluster = clusters[i]
 
 # Run Wflow with on-the-fly forcing using script.
 path_run_wflow = joinpath("/p/moonshot2-casestudy/Wflow/africa/scripts/03_run_wflow_interp_080.jl")
