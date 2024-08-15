@@ -3,6 +3,7 @@ system:
   
 data:
   basins: "data/2-interim/GIS/basins_mainland_and_madagascar.geojson"
+  temp_precip_forcing: "era5_daily_zarr"
   directories:
     external: "data/1-external"
     interim: "data/2-interim"
@@ -12,6 +13,9 @@ data:
 methods:
   cluster: "domain_method"
   touches: "centroid"
+  pet_method: "penman-monteith_tdew"
+  tmin: 1980
+  tmax: None
 
 wflow:
   starttime: "2010-01-01T00:00:00"
@@ -27,3 +31,4 @@ setup_basemaps:
   basin_index_fn: merit_hydro_index
   upscale_method: ihu
   res: 0.00833
+
