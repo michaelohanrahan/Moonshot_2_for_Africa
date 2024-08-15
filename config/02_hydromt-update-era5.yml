@@ -1,8 +1,8 @@
 setup_config:                 # options parsed to wflow toml file <section>.<option>
-  starttime: 2010-01-01T00:00:00
-  endtime: 2016-01-01T00:00:00
+  starttime: 2016-01-01T00:00:00
+  endtime: 2021-01-01T00:00:00
   timestepsecs: 86400
-  input.path_forcing: inmaps-era5-2010-2015.nc
+  input.path_forcing: inmaps-era5-2016-2020.nc
   
 setup_precip_forcing:
   precip_fn: era5          # source for precipitation.
