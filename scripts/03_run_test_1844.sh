@@ -1,9 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=ms2_cluster
-#SBATCH --cpus-per-task=1
-#SBATCH --partition test
+#SBATCH --job-name=ms2_test_1844
+#SBATCH --time=120:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --partition 16vcpu
 #SBATCH --mail-type=begin
 #SBATCH --mail-type=end
 #SBATCH --mail-user=sebastian.hartgring@deltares.nl
-  
-julia -t $SLURM_CPUS_PER_TASK 03_run_cluster.jl $SLURM_ARRAY_TASK_ID
+
+# cluster with ID 1844 corresponds to the 61th cluster in the list  
+julia -t 16 03_run_cluster.jl 61
