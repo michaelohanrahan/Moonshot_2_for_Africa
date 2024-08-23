@@ -39,6 +39,8 @@ def write_forcing(ds, fn_out, freq_out='Y', chunksize=1, decimals=2, time_units=
             delayed_obj.compute(**kwargs)
 
 def main(args):
+    
+    
     os.chdir(Path(r'p:\moonshot2-casestudy\Wflow\africa'))
     l = setup_logging('data/0-log', '00_forcing.log')
     l.info("Building model assuming access to deltares_data catalog")

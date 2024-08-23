@@ -7,8 +7,11 @@ from scripts.helper import syscheck
 from scripts.helper import create_directories
 import os
 
+#TODO: Create generic cluster configuration
+#profile: 
 configfile: "config/snakeConfig.yml"
 
+#return drive as either p: or /p/
 DRIVE=syscheck()
 
 # set the working directory
@@ -22,7 +25,24 @@ def get_clusters(wildcards):return list(set(np.loadtxt(Path('data/2-interim/clus
 
 rule all: 
     input: 
-        Path(outdir, 'models', '1716', 'staticmaps', 'staticmaps.nc')
+        expand(Path(outdir, 'models', '{cluster}', 'staticmaps', 'staticmaps.nc'), cluster=get_clusters(wildcards))
+
+'''
+:: Cluster the basins based on the given method
+
+args:
+    basin_geojson: str, path to the basin GeoJSON file
+    crs: str, crs of the basin GeoJSON file
+    method: str, method to use for clustering
+    touches: bool, if True, the basins will be clustered based on the touching basins
+    plot: bool, if True, the clusters will be plotted
+    savefig: bool, if True, the plot will be saved
+    test_list: list, list of basins to test the clustering on
+    fill_rings: bool, if True, the rings of the basins will be filled
+
+#TODO:  Think about how the clustering actually fits into the workflow.. 
+        Since this is the first step below, but the indexes of the clustering are already known for the wildcards. 
+'''
 
 rule clusterbasins:
     input: 
@@ -35,7 +55,8 @@ rule clusterbasins:
         savefig = True,
         test_list = None, #can be None or list
         fill_rings = False
-    output:models = expand(Path(outdir, 'models', '{cluster}'), cluster=f'{{cluster}}')
+    output:models = Path(outdir, 'models', '{cluster}')#cluster=f'{{cluster}}')
+    localrule: True
     script:
         "scripts/01_cluster_basins.py"
 
@@ -43,9 +64,10 @@ rule clusterbasins:
 rule build_models:
     input:
         basin_geojson = 'data/2-interim/dissolved_basins.geojson',
-        model = lambda wildcards: expand(str(Path(outdir, 'models', '{cluster}')), cluster=get_clusters(wildcards))
+        model = Path(outdir, 'models', '{cluster}')
     output:
         grid = Path(outdir, 'models','{cluster}','staticmaps', 'staticmaps.nc')
+    localrule: False #Determine the necessary recources by RAM demand and add to the profile
     script:
         "scripts/02_hydromt_wflow_build.py"
 
@@ -70,9 +92,10 @@ rule build_forcing:
     params:
         tpf = config['data']['temp_precip_forcing'],
         method = config['methods']['pet_method'],
-        tmin = config['methods']['tmin'], #can be year
-        tmax = config['methods']['tmax'], #can be None and defaults to most recent
+        tmin = config['methods']['tmin'], 
+        tmax = config['methods']['tmax'],
     output:
         forcing = Path(outdir, 'models', '{cluster}', 'inmaps', 'inmaps_pet_prec_{params.tpf}_{params.method}_daily_*.nc')
+    localrule: False
     shell:
         '''python scripts/00_forcing --tpf {params.tpf} --method {params.method} --tmin {params.tmin} --tmax {params.tmax}'''
