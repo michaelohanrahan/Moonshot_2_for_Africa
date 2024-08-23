@@ -35,7 +35,7 @@ def setup_logging(dir, logname):
     f_handler.setLevel(logging.INFO)  # Set level for file handler
 
     # Create formatters and add it to handlers
-    format_str = '%(name)s - %(levelname)s - %(message)s'  # Modify as needed
+    format_str = '%(name)s - %(asctime)s - %(levelname)s - %(message)s'  # Modify as needed
     c_format = logging.Formatter(format_str)
     f_format = logging.Formatter(format_str)
     c_handler.setFormatter(c_format)
@@ -46,3 +46,11 @@ def setup_logging(dir, logname):
     logger.addHandler(f_handler)
     assert os.path.exists(log_file_path)
     return logger
+
+if __name__ == "__main__":
+    os.chdir('..')
+    # Test the logging setup
+    l = setup_logging('data/0-log', 'test_logging.log')
+    l.info("This is a test log message.")
+    p = syscheck()
+    l.info(f"System check: {p}")
