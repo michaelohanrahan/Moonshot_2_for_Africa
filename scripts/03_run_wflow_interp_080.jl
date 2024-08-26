@@ -1,3 +1,28 @@
+using Wflow
+
+using Wflow.UnPack
+using Wflow.ProgressLogging
+using Wflow.NCDatasets
+using Wflow.Dates
+using Wflow.Base.Threads
+using Wflow.Statistics
+using Interpolations
+
+"""
+Function to run a single timestep, that includes reading coarser resolution forcing data, and
+regridding this to the Wflow model grid. Optionally, a lapse rate correction can be applied, to
+correct the temperature field with the high resolution model DEM.
+"""
+function run_timestep_regrid(model::Wflow.Model, correct2sea, correct2dem; update_func=Wflow.update, write_model_output=true)
+    Wflow.advance!(model.clock)
+    # load_dynamic_input!(model)
+    load_dynamic_input_regrid!(model, correct2sea, correct2dem)
+    model = update_func(model)
+    if write_model_output
+        Wflow.write_output(model)
+    end
+    return model
+end
 
 """
 Custom run function of Wflow, adapted from v0.8.0, that includes regridding coarser resolution
