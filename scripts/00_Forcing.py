@@ -26,6 +26,7 @@ def write_forcing(ds, fn_out, freq_out='Y', chunksize=1, decimals=2, time_units=
             ds[v].attrs.pop("_FillValue", None)
             encoding[v] = {"_FillValue": None}
 
+    
     for label, ds_gr in ds.resample(time=freq_out):
         year = ds_gr["time"].dt.year[0].item()
         fn_out_gr = fn_out.replace('*', str(year))
@@ -39,8 +40,6 @@ def write_forcing(ds, fn_out, freq_out='Y', chunksize=1, decimals=2, time_units=
             delayed_obj.compute(**kwargs)
 
 def main(args):
-    
-    
     os.chdir(Path(r'p:\moonshot2-casestudy\Wflow\africa'))
     l = setup_logging('data/0-log', '00_forcing.log')
     l.info("Building model assuming access to deltares_data catalog")
