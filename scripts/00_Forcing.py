@@ -99,16 +99,29 @@ def main(args):
 
     variables = ["temp"]
     if args.method == "debruin":
-        variables += ["press_msl", "kin", "kout"]
+        variables += ["press_msl", 
+                      "kin",
+                      "kout"]
     elif args.method == "makkink":
-        variables += ["press_msl", "kin"]
+        variables += ["press_msl", 
+                      "kin"]
     elif args.method == "penman-monteith_rh_simple":
-        variables += ["temp_min", "temp_max", "rh", "kin"]
+        variables += ["temp_min", 
+                      "temp_max", 
+                      "rh", 
+                      "kin"]
     elif args.method == "penman-monteith_tdew":
-        variables += ["temp_min", "temp_max", "wind10_u", "wind10_v", "temp_dew", "kin", "press_msl"]
+        variables += ["temp_min", 
+                      "temp_max", 
+                      "wind10_u",
+                      "wind10_v", 
+                      "temp_dew", 
+                      "kin", 
+                      "press_msl"]
 
     if 'u10' in grid.data_vars:
-        grid = grid.rename({'u10': 'wind10_u', 'v10': 'wind10_v'})
+        grid = grid.rename({'u10': 'wind10_u', 
+                            'v10': 'wind10_v'})
     if 'd2m' in grid.data_vars:
         grid = grid.rename({'d2m': 'temp_dew'})
 
