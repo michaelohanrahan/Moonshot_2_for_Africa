@@ -25,7 +25,8 @@ def get_clusters(wildcards):return list(set(np.loadtxt(Path('data/2-interim/clus
 
 rule all: 
     input: 
-        expand(Path(outdir, 'models', '{cluster}', 'staticmaps', 'staticmaps.nc'), cluster=get_clusters(wildcards))
+        expand(Path(outdir, 'models', '{cluster}', 'staticmaps', 'staticmaps.nc'), cluster=get_clusters(wildcards)),
+
 
 '''
 :: Cluster the basins based on the given method
@@ -99,3 +100,30 @@ rule build_forcing:
     localrule: False
     shell:
         '''python scripts/00_forcing --tpf {params.tpf} --method {params.method} --tmin {params.tmin} --tmax {params.tmax}'''
+    
+rule run_wflow_forecast:
+'''
+:: Run a Wflow forecast for a given location and timestamp
+
+args:
+    cluster_selected: int, cluster that we want to run
+returns:
+    forcing.nc: netcdf file with the forcing data, written per year as '{model_root}/inmaps/inmaps_pet_prec_{tpf}_{.method}_daily_*.nc'
+'''
+    input:
+        cluster_selected = 
+    params:
+    output:
+    shell:
+
+rule run_wflow_state:
+    input:
+    params:
+    output:
+    shell:
+
+rule run_wflow_hist:
+    input:
+    params:
+    output:
+    shell:
