@@ -31,7 +31,8 @@ rule all:
     input: 
         expand(Path(source_wflow, '{cluster}', 'staticmaps.nc'), cluster=clusters),
         expand(Path(source_sfincs, '{cluster}', 'staticmaps.nc'), cluster=clusters),
-        expand(Path(source_sfincs, '{cluster}', 'wflow_sbm.toml'), cluster=clusters)
+        expand(Path(source_sfincs, '{cluster}', 'wflow_sbm.toml'), cluster=clusters),
+
 
 '''
 :: Cluster the basins based on the given method
@@ -143,17 +144,31 @@ rule create_gaugemap:
     localrule: True
     cores: 1
     shell:
-        """
-        pixi run python src/pre/update_gauges.py {params.cwd} {params.config_root} {input.gauges} \
-            --new_root "{params.new_root}" \
-            --mode "{params.mode}" \
-            --basename "{params.basename}" \
-            --index_col "{params.index_col}" \
-            --ignore_list "{params.ignorelist}" \
-            --snap_to_river True \
-            --max_dist {params.max_dist} \
-            --derive_subcatch True \
-            --crs "{params.crs}" \
-            --config_old "{params.config_old}" \
-            --config_new "{params.config_new}"
-        """
+        '''python scripts/00_forcing --tpf {params.tpf} --method {params.method} --tmin {params.tmin} --tmax {params.tmax}'''
+    
+rule run_wflow_forecast:
+'''
+:: Run a Wflow forecast for a given location and timestamp
+
+args:
+    cluster_selected: int, cluster that we want to run
+returns:
+    forcing.nc: netcdf file with the forcing data, written per year as '{model_root}/inmaps/inmaps_pet_prec_{tpf}_{.method}_daily_*.nc'
+'''
+    input:
+        cluster_selected = 
+    params:
+    output:
+    shell:
+
+rule run_wflow_state:
+    input:
+    params:
+    output:
+    shell:
+
+rule run_wflow_hist:
+    input:
+    params:
+    output:
+    shell:

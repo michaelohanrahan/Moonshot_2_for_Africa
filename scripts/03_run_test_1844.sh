@@ -8,4 +8,4 @@
 #SBATCH --mail-user=sebastian.hartgring@deltares.nl
 
 # cluster with ID 1844 corresponds to the 61th cluster in the list  
-julia -t 16 03_run_cluster.jl 61
+julia -t 4 03_run_cluster.jl 61
