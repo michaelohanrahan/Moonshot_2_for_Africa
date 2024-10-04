@@ -81,7 +81,6 @@ def calc_pet(grid, args, l, dc):
 
     temp_in = hydromt.workflows.forcing.temp(
         grid['temp'], dem_model=DEM, dem_forcing=DEM, lapse_correction=False, logger=l, freq=None)
-
     if "penman-monteith" in args.method:
         l.info("Calculating max and min temperature")
         temp_max_in = hydromt.workflows.forcing.temp(
@@ -167,7 +166,9 @@ def main(args):
     l = setup_logging('data/0-log', '00_build_PET.log')
     l.info("Building model assuming access to deltares_data catalog")
     l.info(f"Writing output to {outfile}")
+    
     drive = syscheck()
+    
     dc = DataCatalog(f'{drive}/wflow_global/hydromt/deltares_data.yml')
     
     if tmin is not None:
@@ -175,6 +176,7 @@ def main(args):
         grid = dc.get_rasterdataset(
             args.tpf
         ).sel(time=slice(tmin,tmax)).chunk({"time": 1, "latitude": -1, "longitude": -1})
+        
     else:
         l.info("Calculating PET from the beginning of the dataset")
         grid = dc.get_rasterdataset(
