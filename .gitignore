@@ -2,6 +2,11 @@
 __pycache__/
 *.py[cod]
 
+*.zarr
+*.nc
+*.csv
+*.toml
+
 # C and Fortran extensions
 *.so
 *.dylib

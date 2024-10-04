@@ -9,6 +9,9 @@ data:
     interim: "data/2-interim"
     input: "data/3-input"
     output: "data/4-output"
+  models:
+    wflow: "src/3-model/wflow_build"
+    sfincs_boundary: "src/3-model/update_gauges"
 
 methods:
   cluster: "domain_method"
@@ -16,6 +19,7 @@ methods:
   pet_method: "penman-monteith_tdew"
   tmin: 1980
   tmax: None
+  gauges: "sfincs"
 
 wflow:
   starttime: "2010-01-01T00:00:00"
