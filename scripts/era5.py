@@ -1,5 +1,6 @@
 import xarray as xr
 import icecream as ic
+import traceback
 
 def main():
     # Open the dataset
@@ -8,7 +9,9 @@ def main():
         chunks=None,
         storage_options=dict(token='anon'),
     )
+    
     ic(ds)
+    
     # Select only the variables you need
     variables = [
         '2m_temperature',
@@ -20,12 +23,6 @@ def main():
 
     # Select the variables and the full time range
     subset = ds[variables].isel(time=0)
-
-    # If you want to save this subset locally
-    # subset.to_netcdf('era5_subset.nc')
-
-    # If you want to work with the data directly, you can do so here
-    # For example, to print information about the subset:
     print(subset)
 
 if __name__ == "__main__":
