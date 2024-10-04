@@ -7,8 +7,10 @@ from scripts.helper import syscheck
 from scripts.helper import create_directories
 import os
 
-#TODO: Create generic cluster configuration
-#profile: 
+#TODO: finalize the workflow and how its called
+#      User defines a region or location --> builds a snake config --> runs build and instates for the region
+#      ARGS: REGION, DATE ..... (¿ VIZ, PLOT, SAVE ?)
+
 configfile: "config/snakeConfig.yml"
 
 #return drive as either p: or /p/
@@ -85,6 +87,10 @@ args:
     tmax: str, year to end at (None defaults to most recent, present year)
 returns:
     forcing.nc: netcdf file with the forcing data, written per year as '{model_root}/inmaps/inmaps_pet_prec_{tpf}_{.method}_daily_*.nc'
+
+#TODO: IDEALLY we no longer build forcing, we run from DD catalog checking for instates and data availability 
+        including download and processing of the data.
+
 '''
 
 rule build_forcing:
