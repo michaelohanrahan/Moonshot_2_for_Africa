@@ -1,11 +1,25 @@
+# README
+# Summary of the workflow:
+# 1) A config is processed as a Config and contains:
+# - points of interests (spatial)
+# - start date and duration (temporal)
+# - model settings such as forcing type
+# 2) The Jobs consist of a Forecast per cluster
+# 3) Each Forecast requires an initial State
+# - Either an existing state is used
+# - Or a new state must be created
+# 4) Create TOML files and estimate run durations
+# - Each Forecast gets its own TOML file
+# - Only a new State requires a TOML file
+
 import logging
-import geopandas as gpd
 import datetime
 import os
 import bisect
 import yaml
 import glob
 
+import geopandas as gpd
 from hydromt_wflow import WflowModel
 from hydromt.config import configread
 
@@ -32,22 +46,8 @@ _FORCING_FILES = {
     "chirps": "...",
 }
 
-_MAX_RUNTIME = 10  # upper limit for runtime in ms per timestep per km²
+_MAX_RUNTIME = 10  # upper limit for runtime, unit: ms per timestep per km²
 # TODO: dict per cluster type / number of cores
-
-# README
-# Summary of the workflow:
-# 1) A config is processed as a Config and contains:
-# - points of interests (spatial)
-# - start date and duration (temporal)
-# - model settings such as forcing type
-# 2) The Jobs consist of a Forecast per cluster
-# 3) Each Forecast requires an initial State
-# - Either an existing state is used
-# - Or a new state must be created
-# 4) Create TOML files and estimate run durations
-# - Each Forecast gets its own TOML file
-# - Only a new State requires a TOML file
 
 def time_in_dhms(seconds: float) -> str:
     """
@@ -329,6 +329,7 @@ class Run:
         -------
         max_runtime: float
             The maximum runtime of the run in seconds.
+            
         """
         cluster = clusters[clusters[column_with_ids] == self.cluster_id]
         cluster = cluster.to_crs(epsg=3857)
@@ -358,6 +359,7 @@ class State(Run):
                 A Jobs object containing the jobs for the forecast.
             cluster_id : int
                 The cluster id for the Wflow model run.
+
         """
         super().__init__(jobs, cluster_id)
         self.logger.info(f"Initializing forecast for cluster {cluster_id}")
@@ -392,6 +394,7 @@ class State(Run):
         -------
         list[datetime.datetime]
             A list of datetime objects representing the dates of the available states.
+
         """
         fname = f"{self.forcing}_*.nc" if self.forcing else "*.nc"
         files = glob.glob(os.path.join(self.state_dir, fname))
@@ -413,10 +416,6 @@ class State(Run):
         ----------
         warmup_days : int, optional
             The tolerance to search for an existing state as starting point.
-
-        Returns
-        -------
-        None
         """
         available_states = self.get_all_states()
         index = bisect.bisect_right(available_states, self.jobs.tstart)
@@ -465,9 +464,6 @@ class Forecast(Run):
         Prepares the Wflow model run by checking for states,
         writing TOML files and estimating the maximum runtime.
 
-        Returns
-        -------
-        None
         """
         self.logger.info(f"Preparing run for cluster {self.cluster_id}")
         self.find_recent_state()
@@ -501,9 +497,6 @@ class Forecast(Run):
         recent_days : int, optional
             The number of days to consider for the search of the most recent state.
 
-        Returns
-        -------
-        None
         """
         self.logger.info(
             f"Searching for most recent state (start date: {self.starttime},"
