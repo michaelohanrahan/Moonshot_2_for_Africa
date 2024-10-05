@@ -6,7 +6,7 @@ import geopandas as gpd
 
 # setup logging
 from hydromt.log import setuplog
-logger = setuplog("Moonshot 2 - Africa", log_level=10)
+logger = setuplog("Moonshot 2 - Africa", log_level=50)
 
 # hard-coded input for testing
 from sys import platform
@@ -20,9 +20,8 @@ CLUSTERED_GEOMETRIES = os.path.join(ROOT, "data/2-interim/dissolved_basins.geojs
 
 # global settings for Wflow model
 MODE = "w"
-BUILD_CONFIG = os.path.join(ROOT, "config/02_hydromt-build-full.yml")
-FORCING_CONFIG = os.path.join(ROOT, "config/02_hydromt-update-era5.yml")
-WFLOW_ROOT = os.path.join(ROOT, "src/3-model/wflow_build") #TODO model locations?
+BUILD_CONFIG = os.path.join(ROOT, "config/2_hydromt-build.yml")
+WFLOW_ROOT = os.path.join(ROOT, "data/3-input/wflow_build")
 
 # snakemake input
 # CLUSTERED_GEOMETRIES = snakemake.params.clustered_geometries
@@ -73,19 +72,19 @@ if __name__ == "__main__":
     with open(log_failed, 'w') as file:
         file.write('')
 
-    logger.info(f"CUSTOM: reading geometry file with all basins")
+    logger.critical("CUSTOM: reading geometry file with all basins")
     clustered_basins = gpd.read_file(CLUSTERED_GEOMETRIES)
     basin_ids = list(clustered_basins[INDEX_COL])
     logger.info(f"CUSTOM: geometry file contains {len(basin_ids)} basins")
     for i, basin_id in enumerate(basin_ids):
-        logger.info(f"CUSTOM: processing basin id {basin_id} ({i + 1}/{len(basin_ids)})")
+        logger.critical(f"CUSTOM: processing basin id {basin_id} ({i + 1}/{len(basin_ids)})")
         logger.info(f"CUSTOM: creating root linked to basin id {basin_id}")
         root = get_root(index=basin_id)
         logger.info(f"CUSTOM: reading geometry file and finding geom with index {basin_id}")
         geom = get_geom(index=basin_id, all_geoms=clustered_basins)
         try:
-            logger.info(f"CUSTOM: start initializing and building Wflow model with index {basin_id}")
+            logger.critical(f"CUSTOM: start initializing and building Wflow model with index {basin_id}")
             create_model(root=root, geom=geom)
         except Exception as e:
-            logger.error(f"Error processing basin id {basin_id}: {e}")
+            logger.critical(f"Error processing basin id {basin_id}: {e}")
             log_basin_id(basin_id, log_failed)

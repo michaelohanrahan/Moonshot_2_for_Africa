@@ -107,6 +107,9 @@ data/4-output
 data/5-visualization
 src/3-model
 
+# exclude generated forecasts
+forecasts/
+
 # exclude figures
 reports/figures
 

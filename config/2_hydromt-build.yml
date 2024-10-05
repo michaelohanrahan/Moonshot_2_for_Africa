@@ -19,25 +19,20 @@ setup_rivers:
   min_rivwth: 30               # minimum river width [m]
   slope_len: 2000             # length over which tp calculate river slope [m]
   smooth_len: 5000             # length over which to smooth river depth and river width [m]
-  river_routing: kinematic-wave   # {'kinematic-wave', 'local-inertial'}
+  river_routing: local-inertial   # {'kinematic-wave', 'local-inertial'}
 
-# setup_floodplains: # if 2D floodplains are required
-#   hydrography_fn: merit_hydro      # source hydrography data, should correspond to hydrography_fn in setup_basemaps
-#   floodplain_type: 2d #  # If two-dimensional floodplains are required
-#   elevtn_map: wflow_dem  # {'wflow_dem', 'dem_subgrid'}
-
-# setup_floodplains: # if 1D floodplains are required
-#   hydrography_fn: merit_hydro      # source hydrography data, should correspond to hydrography_fn in setup_basemaps
-#   floodplain_type: 1d    # If one-dimensional floodplains are required
-#   flood_depths: # flood depths at which a volume is derived
-#     - 0.5
-#     - 1.0
-#     - 1.5
-#     - 2.0
-#     - 2.5
-#     - 3.0
-#     - 4.0
-#     - 5.0
+setup_floodplains: # if 1D floodplains are required
+  hydrography_fn: merit_hydro      # source hydrography data, should correspond to hydrography_fn in setup_basemaps
+  floodplain_type: 1d    # If one-dimensional floodplains are required
+  flood_depths: # flood depths at which a volume is derived
+    - 0.5
+    - 1.0
+    - 1.5
+    - 2.0
+    - 2.5
+    - 3.0
+    - 4.0
+    - 5.0
 
 setup_reservoirs:
   reservoirs_fn: hydro_reservoirs  # source for reservoirs shape and attributes
