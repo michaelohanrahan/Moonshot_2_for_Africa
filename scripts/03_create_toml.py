@@ -35,15 +35,11 @@ _FORCING_FILES = {
 _MAX_RUNTIME = 10  # upper limit for runtime in ms per timestep per km²
 # TODO: dict per cluster type / number of cores
 
-"""
-TO DO LIST
-- Add consistency checks: to start of script, e.g. do all states have a config assigned to them?
-"""
-
 
 def time_in_dhms(seconds: float) -> str:
     """
-    Converts a given time in seconds to a string representation in days, hours, minutes, and seconds.
+    Converts a given time in seconds to a string representation in
+    days, hours, minutes, and seconds.
 
     Parameters
     ----------
@@ -71,7 +67,7 @@ class Config:
     """
     A class used to easily access the attributes read from the config file.
 
-    TODO: It might be worh it to replace this Config object by a generic (HydroMT/Hydroflows?) object in the future?
+    TODO: It might be worh it to replace this Config object by a HydroMT/Hydroflows config?
     """
 
     def __init__(self, config_path: str, logger=logger) -> None:
@@ -170,12 +166,12 @@ class Jobs:
 
     def locate_clusters(self, column_with_ids: str = "cluster_key") -> list[int]:
         """
-        Finds the clusters corresponding to the points of interest using 'geopandas.sjoin'
+        Finds the clusters corresponding to the points of interest using 'geopandas.sjoin'.
 
         Parameters
         ----------
         column_with_ids : str, optional
-            The column in the clusters GeoDataFrame that contains the cluster ids. Default is 'cluster_key'.
+            The column in the clusters GeoDataFrame that contains the cluster ids.
 
         Returns
         -------
@@ -245,16 +241,17 @@ class Run:
 
         This method sets and writes the configuration for the Wflow model using the Run attributes.
         It uses a dummy instance of WflowModel from hydromt_wflow to update and write the TOML file.
-        A hydromt_wflow configuration file can be used to further update specific parts of the TOML file.
-        The TOML file for both the state and forecast are written to the output directory of the forecast.
+        A hydromt_wflow configuration file can be used to further update specific parts of the
+        TOML file. The TOML file for both the state and forecast are written to the output directory
+        of the forecast.
 
         Parameters
         ----------
         template : str
             The path to the template TOML file to use for the Wflow model configuration.
         hydromt_config_fn : str, optional
-            The path to a hydromt_wflow config file. If provided, the configuration options in this file
-            will be read and used to update the Wflow model configuration.
+            The path to a hydromt_wflow config file. If provided, the configuration options
+            in this file will be read and used to update the Wflow model configuration.
         limit_logging: bool, optional
             Will prevent logging from the hydromt_wflow module to be added to the current log.
 
@@ -299,18 +296,21 @@ class Run:
         """
         Estimates the maximum runtime for the Wflow model.
 
-        This method calculates the area of the cluster in square kilometers, and multiplies it by the duration in timesteps
-        of the model to obtain an estimate of the maximum runtime. The global variable _MAX_RUNTIME is used which contains
-        a constant for the maximum runtime per km² per timestep in seconds. The maximum runtime can be used when the simulation
+        This method calculates the area of the cluster in square kilometers,
+        and multiplies it by the duration in timesteps of the model to obtain an
+        estimate of the maximum runtime. The global variable _MAX_RUNTIME is
+        used which contains a constant for the maximum runtime per km² per timestep in seconds.
+        The maximum runtime can be used when the simulation
         is calculated on a computational cluster.
 
         Parameters
         ----------
         clusters : gpd.GeoDataFrame
-            A GeoDataFrame containing the clusters. Each row represents a cluster and must have a geometry column
-            with the polygon of the cluster.
+            A GeoDataFrame containing the clusters. Each row represents a
+            cluster and must have a geometry column with the polygon of the cluster.
         column_with_ids : str, optional
-            The name of the column in 'clusters' that contains the cluster IDs. The default is 'cluster_key'.
+            The name of the column in 'clusters' that contains the cluster IDs.
+            The default is 'cluster_key'.
 
         Returns
         -------
@@ -371,8 +371,9 @@ class State(Run):
         """
         Returns a list of all available states for the Wflow model forecast.
 
-        This method retrieves all state files from the state directory and extracts the date from each file name.
-        It will also filter these states by the selected forcing type when specified in the original config.
+        This method retrieves all state files from the state director 
+        and extracts the date from each file name. It will also filter these states
+        by the selected forcing type when specified in the original config.
 
         Returns
         -------
@@ -392,7 +393,8 @@ class State(Run):
         Prepares a Wflow model run to create a new state for a forecast.
 
         This method prepares a new Wflow model run to be used as a warm state for a forecast.
-        It will try to use an exisiting state if it can be found within the tolerance of 'warmup_days'.
+        It will try to use an exisiting state if
+        it can be found within the tolerance of 'warmup_days'.
 
         Parameters
         ----------
@@ -415,7 +417,8 @@ class State(Run):
             state = self.jobs.tstart - datetime.timedelta(days=warmup_days)
             self.reinit = True
             self.logger.info(
-                f"Preparing new warmup run, starting with cold state {state} (warmup_days = {warmup_days})"
+                f"Preparing new warmup run,"
+                f"starting with cold state {state} (warmup_days = {warmup_days})"
             )
         self.state_date = state
 
@@ -424,8 +427,9 @@ class Forecast(Run):
     """
     A class used to represent the Run that forms the Forecast for a specific cluster.
 
-    This class inherits from the Run class, and also contains a State object that represents the warm state for the Forecast.
-    It used the toml defined in the global variable _TOML_FORECAST as a template for the run settings.
+    This class inherits from the Run class, and also contains a State object that represents
+    the warm state for the Forecast. It used the toml defined in the global variable _TOML_FORECAST
+    as a template for the run settings.
 
     """
 
@@ -445,7 +449,8 @@ class Forecast(Run):
 
     def prepare(self):
         """
-        Prepares the Wflow model run by checking for states, writing TOML files and estimating the maximum runtime.
+        Prepares the Wflow model run by checking for states,
+        writing TOML files and estimating the maximum runtime.
 
         Returns
         -------
@@ -472,9 +477,11 @@ class Forecast(Run):
         """
         Finds the most recent state for a Forecast.
 
-        This method searches the most recent state for a Forecast. When a matching state if found within the tolerance of 'recent_days',
-        it will use that state and change the start date of the forecast to match this state. If no recent state is found, it will prepare a
-        new warump run that will create the state for the forecast.
+        This method searches the most recent state for a Forecast.
+        When a matching state if found within the tolerance of 'recent_days',
+        it will use that state and change the start date of the forecast to match this state.
+        If no recent state is found, it will prepare a new warump run
+        that will create the state for the forecast.
 
         Parameters
         ----------
@@ -486,11 +493,13 @@ class Forecast(Run):
         None
         """
         self.logger.info(
-            f"Searching for most recent state (start date: {self.starttime}, recent_days: {recent_days})"
+            f"Searching for most recent state (start date: {self.starttime},"
+            f"recent_days: {recent_days})"
         )
         available_states = self.state.get_all_states()
         self.logger.info(
-            f"Found {len(available_states)} existing states for this combintation of cluster and forcing"
+            f"Found {len(available_states)} existing states for this combintation"
+            " vof cluster and forcing"
         )
         for state in available_states:
             if state == self.starttime:
