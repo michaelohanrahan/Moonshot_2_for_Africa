@@ -34,9 +34,36 @@ TO DO LIST
 - Add consistency checks: to start of script, e.g. do all states have a config assigned to them?
 '''
 
+def time_in_dhms(seconds: float) -> str:
+    """
+    Converts a given time in seconds to a string representation in days, hours, minutes, and seconds.
+
+    Parameters
+    ----------
+    seconds : float
+        The time in seconds to be converted.
+
+    Returns
+    -------
+    str
+        A string representation of the time in the format 'X days, Y hours, Z minutes, W seconds'.
+    """
+    # Define the time components and their corresponding number of seconds
+    components = [('days', 86400), ('hours', 3600), ('minutes', 60), ('seconds', 1)]
+    time_values = []
+
+    # Calculate the value for each time component
+    for name, secs_per_unit in components:
+        value, seconds = divmod(seconds, secs_per_unit)
+        if value > 0 or name == 'seconds':
+            time_values.append(f"{int(value)} {name}")
+    return ", ".join(time_values)
+
 class Config:
     '''
     A class used to easily access the attributes read from the config file.
+
+    TODO: It might be worh it to replace this Config object by a generic (HydroMT/Hydroflows?) object in the future?
     '''
     def __init__(self, config_path: str, logger=logger) -> None:
         """
@@ -70,7 +97,7 @@ class Config:
         self.start_date = config_dict['start_date']
         self.timestepsecs = config_dict['timestepsecs']
         self.duration_in_timesteps = config_dict['duration_in_timesteps']
-        self.vars = config_dict['variables']
+        self.variables = config_dict['variables'] # not used yet
         self.forcing = config_dict['forcing']
         self.warmup_forcing = config_dict["warmup_forcing"]  
 
@@ -95,14 +122,24 @@ class Jobs:
 
         self.points = gpd.read_file(self.config.points_of_interest)
         self.clusters = gpd.read_file(_CLUSTERS)
-        self.cluster_ids = None
+        
+        self.cluster_ids = []
+        self.runtimes = {}
 
-    def locate_cluster(self, column_with_ids: str = 'cluster_key') -> list[int]:
+    def prepare(self):
+        self.cluster_ids = self.locate_clusters()
+        for cluster_id in self.cluster_ids:
+            forecast = Forecast(self, cluster_id)
+            forecast.prepare()
+            self.runtimes[cluster_id] = forecast.estimate_max_runtime(self.clusters)
+
+
+    def locate_clusters(self, column_with_ids: str = 'cluster_key') -> list[int]:
         self.logger.info("Finding clusters corresponding to points of interest")
         cluster_ids = gpd.sjoin(self.points, self.clusters, how='inner', predicate='within')[column_with_ids]
         cluster_ids = list(map(lambda x: int(x) if str(x).isdigit() else x, set(cluster_ids)))
         self.logger.info(f"Found one or more clusters: {cluster_ids}")
-        self.cluster_ids = cluster_ids
+        return cluster_ids
 
 
 class Run():
@@ -272,11 +309,16 @@ class Forecast(Run):
     def prepare(self):
         self.logger.info(f"Preparing run for cluster {self.cluster_id}")
         self.find_recent_state()
-        self.logger.info("Write Wflow TOML file for forecast")
-        self.create_toml(template=_TOML_FORECAST)
+        forecast_runtime = self.estimate_max_runtime(self.jobs.clusters)
+        self.jobs.runtimes[f"{self.cluster_id}_forecast"] = forecast_runtime
+        self.logger.info(f"Write Wflow TOML file for forecast, estimated runtime: {time_in_dhms(forecast_runtime)}")
+        self.create_toml(template=_TOML_FORECAST)  
+
         if self.state.create_state:
-            self.logger.info("Write Wflow TOML file for state")
+            state_runtime = self.estimate_max_runtime(self.jobs.clusters)
+            self.logger.info(f"Write Wflow TOML file for state, estimated runtime: {time_in_dhms(state_runtime)}")
             self.state.create_toml(template=_TOML_STATE)
+            self.jobs.runtimes[f"{self.cluster_id}_state"] = state_runtime
 
     def find_recent_state(self, recent_days: int = 14) -> None:
         self.logger.info(f"Searching for most recent state (start date: {self.starttime}, recent_days: {recent_days})")
@@ -296,20 +338,8 @@ class Forecast(Run):
                 self.logger.info("Found no matching states, need to create a new state")
                 self.state.get_new_state()
 
-def main(config_path: str, cluster_path: str):
-    jobs = Jobs(config_path)
-
-    clusters = gpd.read_file(cluster_path)
-    jobs.locate_cluster(clusters)
-    for cluster_id in jobs.clusters:
-        forecast = Forecast(jobs=jobs, cluster_id=cluster_id)
-        forecast.prepare()
-
-
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO) 
-
-    cnfg_path = "p:/moonshot2-casestudy/Wflow/africa/src/0-setup/forecast_mozambique_freddy.yml"
-    clstr_path = 
-
-    main(cnfg_path, clstr_path)
+    logging.basicConfig(level=logging.INFO)
+    config_path = "p:/moonshot2-casestudy/Wflow/africa/src/0-setup/forecast_mozambique_freddy.yml"
+    jobs = Jobs(config_path)
+    jobs.prepare()
