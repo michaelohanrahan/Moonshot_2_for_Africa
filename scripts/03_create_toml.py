@@ -103,7 +103,18 @@ class Config:
 
 
 class Jobs:
+    """
+    A class used to contain the Forecasts for one of more clusters.
+    """
     def __init__(self, config_path: str, logger=logger) -> None:
+        """
+        Constructs all the necessary attributes for the Jobs object.
+
+        Parameters
+        ----------
+            config : Config
+                A Config object containing the configuration for the forecast.
+        """
         self.logger = logger
         self.config = Config(config_path, self.logger)
         self.name = self.config.name
@@ -125,16 +136,36 @@ class Jobs:
         
         self.cluster_ids = []
         self.runtimes = {}
+        self.forecasts = {}
 
     def prepare(self):
+        """
+        Prepares the Forecast for each cluster.
+
+        Returns
+        -------
+        None
+        """
         self.cluster_ids = self.locate_clusters()
         for cluster_id in self.cluster_ids:
             forecast = Forecast(self, cluster_id)
             forecast.prepare()
-            self.runtimes[cluster_id] = forecast.estimate_max_runtime(self.clusters)
-
+            self.forecasts[cluster_id] = forecast
 
     def locate_clusters(self, column_with_ids: str = 'cluster_key') -> list[int]:
+        """
+        Finds the clusters corresponding to the points of interest using 'geopandas.sjoin'
+
+        Parameters
+        ----------
+        column_with_ids : str, optional
+            The column in the clusters GeoDataFrame that contains the cluster ids. Default is 'cluster_key'.
+
+        Returns
+        -------
+        list[int]
+            A list of unique cluster ids.
+        """
         self.logger.info("Finding clusters corresponding to points of interest")
         cluster_ids = gpd.sjoin(self.points, self.clusters, how='inner', predicate='within')[column_with_ids]
         cluster_ids = list(map(lambda x: int(x) if str(x).isdigit() else x, set(cluster_ids)))
