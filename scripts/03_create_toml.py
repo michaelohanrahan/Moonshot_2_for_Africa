@@ -7,6 +7,7 @@ import yaml
 import glob
 
 from hydromt_wflow import WflowModel
+from hydromt.config import configread
 
 logger = logging.getLogger("MS2")
 
@@ -67,124 +68,176 @@ class Config:
         self.logger.info(f"Found one or more clusters: {self.clusters}")
 
 
-class Forecast:
+class Run():
     def __init__(self, config: Config, cluster_id: int) -> None:
         self.logger = config.logger
         self.logger.info(f"Initializing forecast for cluster {cluster_id}")
         self.config = config
         self.cluster = cluster_id
-        self.model_dir = os.path.join(_ROOT, "wflow_build", str(self.cluster))
+        self.toml = None
+        self.duration = None
+        self.dir_input = os.path.join(_ROOT, "wflow_build", str(self.cluster))
+        self.dir_output = os.path.join(_ROOT, "wflow_forecast", self.config.name, str(self.cluster))
         
-        self.state_dir = os.path.join(_ROOT, "wflow_state", str(self.cluster), "state")
-        self.state_config = os.path.join(_ROOT, "wflow_state", str(self.cluster), "config")
-        self.cold_state = False
-        self.create_state = False
 
-        self.forecast_dir = os.path.join(_ROOT, "wflow_forecast", config.name, str(self.cluster))
-  
-    def get_recent_state(self, recent_days: int = 14) -> None:
-        self.logger.info(f"Searching for most recent state (start date: {self.config.tstart})")
-        if not os.path.exists(self.state_dir):
-            self.logger.info("No states exist for this cluster and forcing combination, creating folder")
-            os.makedirs(self.state_dir)
-            os.makedirs(self.state_config)
-            available_states = []
+        # TOML contents
+        self.starttime = None
+        self.endtime = None
+        self.timestepsecs = None
+        self.path_log = None
+        self.reinit = None
+        self.path_forcing = None
+        self.path_output = None
+        self.state_input = None
+        self.state_output = None
+
+    def create_toml(self, template: str, hydromt_config_fn: str = None, limit_logging: bool = True) -> None:
+        """
+        Writes the configuration for the Wflow model to a TOML file.
+
+        This method sets and writes the configuration for the Wflow model using the Run attributes.
+        It uses a dummy instance of WflowModel from hydromt_wflow to update and write the TOML file.
+        A hydromt_wflow configuration file can be used to further update specific parts of the TOML file.
+        The TOML file for both the state and forecast are written to the output directory of the forecast.
+
+        Parameters
+        ----------
+        template : str
+            The path to the template TOML file to use for the Wflow model configuration.
+        hydromt_config_fn : str, optional
+            The path to a hydromt_wflow config file. If provided, the configuration options in this file 
+            will be read and used to update the Wflow model configuration.
+        limit_logging: bool, optional
+            Will prevent logging from the hydromt_wflow module to be added to the current log.
+
+        Returns
+        -------
+        None
+        """
+        if limit_logging:
+            w_logger = logging.getLogger('hydromt_wflow')
+            w_logger.setLevel(logging.CRITICAL)
+            w_logger.addHandler(logging.NullHandler())
         else:
-            available_states = self.get_all_states(self.config.warmup_forcing)
-            self.logger.info(f"Searching through existing states (found {len(available_states)})")
-        for state in available_states:
-            if state == self.config.tstart:
-                self.state_date = state
-                self.logger.info(f"Found state with start date {state}, use as warm state")
-                return
-            if state < self.config.tstart <= state + datetime.timedelta(days=recent_days):
-                self.state_date = state
-                self.config.tstart = state
-                #TODO: update forecast duration as it gets extended
-
-                self.logger.info(f"Found state with start date {state}, use as warm state and new start time")
-                return
-        self.create_state = True # no recent state? create new state
-        self.get_new_state()
-
+            w_logger = self.logger
+    
+        w = WflowModel(config_fn=template, logger=w_logger)
         
-    def get_all_states(self, filter_forcing: str = None) -> list[datetime.datetime]:
-        fname = f"{filter_forcing}_*.nc" if filter_forcing else "*.nc"
+        w.set_config("starttime", self.starttime.strftime(_DATE_FORMAT_LONG))
+        w.set_config("endtime", self.endtime.strftime(_DATE_FORMAT_LONG))
+        w.set_config("timestepsec", self.timestepsecs)
+        w.set_config("dir_input", self.dir_input)
+        w.set_config("dir_output", self.dir_output)
+        w.set_config("path_log", self.path_log)
+
+        w.set_config("model", "reinit", self.reinit)
+        w.set_config("input", "path_forcing", self.path_forcing)
+        w.set_config("state", "path_input", self.state_input)
+        w.set_config("state", "path_output", self.state_output)
+        w.set_config("output", "path", self.path_output)
+
+        if hydromt_config_fn:
+            self.logger.info(f"Reading hydromt_wflow config: {hydromt_config_fn}")
+            opt = configread(config_fn=hydromt_config_fn)
+            w.update(write=False, opt=opt)
+
+        self.logger.info(f"Writing Wflow config (warmup) to {self.dir_output}")
+        w.write_config(self.toml, self.dir_output)
+        w = None # close model
+
+    def estimate_max_runtime(self, clusters: gpd.GeoDataFrame, column_with_ids: str = 'cluster_key') -> None:
+        gdf_cluster = clusters[clusters[column_with_ids] == self.cluster]
+        gdf_cluster = gdf_cluster.to_crs(epsg=3857)
+        area_cluster = gdf_cluster['geometry'].area
+        self.max_runtime = area_cluster * self.duration * _MAX_RUNTIME
+
+class State(Run):
+    def __init__(self, config: Config, cluster_id: int) -> None:
+        super().__init__(config, cluster_id)
+        
+        self.state_dir = os.path.join(_ROOT, "wflow_state", str(self.cluster))
+        if not os.path.exists(self.state_dir):
+            self.logger.info("No states exist yet for this cluster and forcing combination, creating folder")
+            os.makedirs(self.state_dir)
+        
+        self.create_state = False
+        self.forcing = self.config.warmup_forcing
+
+        self.timestepsecs = 86400
+        
+        self.path_log = f"log_{self.config.name}_{self.cluster}_warmup.log"
+        self.reinit = False
+        self.path_forcing = _FORCING_FILES[self.config.forcing]
+        self.path_output = f"{self.config.name}_{self.cluster}_output.nc"
+        self.toml = f"{self.config.name}_{self.cluster}_warmup.toml"
+
+    def get_all_states(self) -> list[datetime.datetime]:
+        fname = f"{self.forcing}_*.nc" if self.forcing else "*.nc"
         files = glob.glob(os.path.join(self.state_dir, fname))
         datestrings = [fname_state.split("_")[1] for fname_state in files]
         states = [datetime.datetime.strptime(date, _DATE_FORMAT_FNAME) for date in datestrings]
         return sorted(states, reverse=True) # from recent to old
 
     def get_new_state(self, warmup_days: int = 750) -> None:
-        available_states = self.get_all_states(self.config.warmup_forcing)
+        available_states = self.get_all_states()
         index = bisect.bisect_right(available_states, self.config.tstart)
         if index:
             state = available_states[index - 1]
-            self.logger.info(f"Found no matching states, preparing warmup run, starting at existing state {state}")
+            self.logger.info(f"Preparing new warmup run, starting at closest existing state {state}")
+            self.reinit = False
         else:
             state = self.config.tstart - datetime.timedelta(days=warmup_days)
-            self.cold_state = True
-            self.logger.info(f"Found no matching states, preparing warmup run, starting with cold state {state} (warmup_days = {warmup_days})")
+            self.reinit = True
+            self.logger.info(f"Preparing new warmup run, starting with cold state {state} (warmup_days = {warmup_days})")
         self.state_date = state
-
-
-    def create_toml_state(self):
-        # dummy Wflow model to access config methods and limit logging from hydromt_wflow
-        w_logger = logging.getLogger('hydromt_wflow')
-        w_logger.setLevel(logging.CRITICAL)
-        w_logger.addHandler(logging.NullHandler())
-        w = WflowModel(logger=w_logger)
         
-        w.read_config(_TOML_STATE)
 
-        w.set_config("starttime", self.state_date.strftime(_DATE_FORMAT_LONG))
-        w.set_config("endtime", self.config.tstart.strftime(_DATE_FORMAT_LONG))
-        w.set_config("timestepsec", self.config.timestepsecs)
-        w.set_config("dir_input", self.model_dir)
-        w.set_config("dir_output", self.forecast_dir)
-        w.set_config("path_log", f"log_{self.config.name}_{self.cluster}_warmup.log")
 
-        w.set_config("model", "reinit", self.cold_state)
-        w.set_config("input", "path_forcing", self.config.forcing)
-        w.set_config("state", "path_input", os.path.join(f"{self.state_dir}", f"{self.state_date.strftime(_DATE_FORMAT_FNAME)}_{self.config.warmup_forcing}.nc"))
-        w.set_config("state", "path_output", os.path.join(f"{self.state_dir}", f"{self.config.tstart.strftime(_DATE_FORMAT_FNAME)}_{self.config.warmup_forcing}.nc"))
-   
-        self.logger.info(f"Writing Wflow config (warmup) to {self.state_config}")
-        w.write_config(f"{self.config.tstart.strftime(_DATE_FORMAT_FNAME)}_{self.config.warmup_forcing}.toml", self.state_config)
-        w = None
+class Forecast(Run):
+    def __init__(self, config: Config, cluster_id: int) -> None:
+        super().__init__(config, cluster_id)
+        self.state = State(config, cluster_id)
+    
+        self.starttime = self.config.tstart
+        self.endtime = self.config.tend
+        self.timestepsecs = self.config.timestepsecs
+        self.duration = self.config.duration
+        self.path_log = f"log_{self.config.name}_{self.cluster}_forecast.log"
+        self.reinit = False
+        self.path_forcing = _FORCING_FILES[self.config.forcing]
+        self.path_output = f"{self.config.name}_{self.cluster}_output.nc"
+        self.toml = f"{self.config.name}_{self.cluster}_warmup.toml"
 
-    def create_toml_forecast(self):
-        # dummy Wflow model to access config methods and limit logging from hydromt_wflow
-        w_logger = logging.getLogger('hydromt_wflow')
-        w_logger.setLevel(logging.CRITICAL)
-        w_logger.addHandler(logging.NullHandler())
-        w = WflowModel(logger=w_logger)
-        
-        w.read_config(_TOML_FORECAST)
+    def prepare(self):
+        self.logger.info(f"Preparing run for cluster {self.cluster}")
+        self.find_recent_state()
+        self.logger.info("Write Wflow TOML file for forecast")
+        self.create_toml(template=_TOML_FORECAST)
+        if self.state.create_state:
+            self.logger.info("Write Wflow TOML file for state")
+            self.state.create_toml(template=_TOML_STATE)
 
-        w.set_config("starttime", self.config.tstart.strftime(_DATE_FORMAT_LONG))
-        w.set_config("endtime", self.config.tend.strftime(_DATE_FORMAT_LONG))
-        w.set_config("timestepsec", self.config.timestepsecs)
-        w.set_config("dir_input", self.model_dir)
-        w.set_config("dir_output", self.forecast_dir)
-        w.set_config("path_log", f"log_{self.config.name}_{self.cluster}_forecast.log")
+    def find_recent_state(self, recent_days: int = 14) -> None:
+        self.logger.info(f"Searching for most recent state (start date: {self.starttime}, recent_days: {recent_days})")
+        available_states = self.state.get_all_states(self.config.warmup_forcing)
+        self.logger.info(f"Found {len(available_states)} existing states for this combintation of cluster and forcing")
+        for state in available_states:
+            if state == self.starttime:
+                self.logger.info(f"Found state with start date {state}, use as warm state")
+                self.state_input = state
+                
+            elif state < self.starttime <= state + datetime.timedelta(days=recent_days):
+                self.logger.info(f"Found state with start date {state}, use as warm state and new start time")
+                self.state_input = state
+                self.starttime = state
+                self.duration = int((self.endtime - self.starttime) / self.timestepsecs)
+            else:
+                self.logger.info("Found no matching states, need to create a new state")
+                self.state.get_new_state()
 
-        w.set_config("model", "reinit", self.cold_state)
-        w.set_config("input", "path_forcing", self.config.forcing)
-        w.set_config("state", "path_input", os.path.join(f"{self.state_dir}", f"{self.config.tstart.strftime(_DATE_FORMAT_FNAME)}_{self.config.warmup_forcing}.nc"))
-        w.set_config("output", "path", f"{self.config.name}_{self.cluster}_output.nc")
-        
-        self.logger.info(f"Writing Wflow config (forecast) to {self.forecast_dir}")
-        w.write_config(f"{self.config.name}_{self.cluster}.toml", self.forecast_dir)
-        w = None
 
-    def estimate_runtime(self, clusters: gpd.GeoDataFrame, column_with_ids: str = 'cluster_key') -> None:
-        gdf_cluster = clusters[clusters[column_with_ids] == self.cluster]
-        gdf_cluster = gdf_cluster.to_crs(epsg=3857)
-        area_cluster = gdf_cluster['geometry'].area
-        if self.create_state:
-            self.state_runtime = area_cluster * (self.config.tstart - self.state_date) / datetime.timedelta(seconds=86400)
-        self.forecast_runtime = area_cluster * self.config.duration
+
+    
 
 def main(config_path: str, cluster_path: str):
     config = Config(config_path)
@@ -193,10 +246,7 @@ def main(config_path: str, cluster_path: str):
     config.locate_cluster(clusters)
     for cluster_id in config.clusters:
         forecast = Forecast(config=config, cluster_id=cluster_id)
-        forecast.get_recent_state()
-        if forecast.create_state:
-            forecast.create_toml_state()
-        forecast.create_toml_forecast()
+        forecast.prepare()
 
 
 if __name__ == "__main__":
