@@ -12,9 +12,15 @@ from hydromt.config import configread
 logger = logging.getLogger("MS2")
 
 _ROOT = os.path.normpath("p:/moonshot2-casestudy/Wflow/africa/src/3-model")
-_TOML_STATE = os.path.normpath("p:/moonshot2-casestudy/Wflow/africa/config/03_warmup_wflow_sbm.toml")
-_TOML_FORECAST = os.path.normpath("p:/moonshot2-casestudy/Wflow/africa/config/03_forecast_wflow_sbm.toml")
-_CLUSTERS = os.path.normpath("p:/moonshot2-casestudy/Wflow/africa/data/2-interim/clustered_basins.geojson")
+_TOML_STATE = os.path.normpath(
+    "p:/moonshot2-casestudy/Wflow/africa/config/03_warmup_wflow_sbm.toml"
+)
+_TOML_FORECAST = os.path.normpath(
+    "p:/moonshot2-casestudy/Wflow/africa/config/03_forecast_wflow_sbm.toml"
+)
+_CLUSTERS = os.path.normpath(
+    "p:/moonshot2-casestudy/Wflow/africa/data/2-interim/clustered_basins.geojson"
+)
 
 _DATE_FORMAT_FNAME = r"%Y%m%d"
 _DATE_FORMAT_SHORT = r"%Y-%m-%d"
@@ -24,15 +30,16 @@ _FORCING_FILES = {
     "era5": "...",
     "era5_hourly": "...",
     "chirps": "...",
-    }
+}
 
-_MAX_RUNTIME = 10 # upper limit for runtime in ms per timestep per km²
-#TODO: dict per cluster type / number of cores
+_MAX_RUNTIME = 10  # upper limit for runtime in ms per timestep per km²
+# TODO: dict per cluster type / number of cores
 
-'''
+"""
 TO DO LIST
 - Add consistency checks: to start of script, e.g. do all states have a config assigned to them?
-'''
+"""
+
 
 def time_in_dhms(seconds: float) -> str:
     """
@@ -49,22 +56,24 @@ def time_in_dhms(seconds: float) -> str:
         A string representation of the time in the format 'X days, Y hours, Z minutes, W seconds'.
     """
     # Define the time components and their corresponding number of seconds
-    components = [('days', 86400), ('hours', 3600), ('minutes', 60), ('seconds', 1)]
+    components = [("days", 86400), ("hours", 3600), ("minutes", 60), ("seconds", 1)]
     time_values = []
 
     # Calculate the value for each time component
     for name, secs_per_unit in components:
         value, seconds = divmod(seconds, secs_per_unit)
-        if value > 0 or name == 'seconds':
+        if value > 0 or name == "seconds":
             time_values.append(f"{int(value)} {name}")
     return ", ".join(time_values)
 
+
 class Config:
-    '''
+    """
     A class used to easily access the attributes read from the config file.
 
     TODO: It might be worh it to replace this Config object by a generic (HydroMT/Hydroflows?) object in the future?
-    '''
+    """
+
     def __init__(self, config_path: str, logger=logger) -> None:
         """
         Constructs all the necessary attributes for the Config object.
@@ -89,23 +98,24 @@ class Config:
             config_path : str
                 The path to the configuration file.
         """
-        with open(config_path, 'r') as file:
+        with open(config_path, "r") as file:
             config_dict = yaml.safe_load(file)
-        
-        self.name = config_dict['name']
-        self.points_of_interest = config_dict['points_of_interest']
-        self.start_date = config_dict['start_date']
-        self.timestepsecs = config_dict['timestepsecs']
-        self.duration_in_timesteps = config_dict['duration_in_timesteps']
-        self.variables = config_dict['variables'] # not used yet
-        self.forcing = config_dict['forcing']
-        self.warmup_forcing = config_dict["warmup_forcing"]  
+
+        self.name = config_dict["name"]
+        self.points_of_interest = config_dict["points_of_interest"]
+        self.start_date = config_dict["start_date"]
+        self.timestepsecs = config_dict["timestepsecs"]
+        self.duration_in_timesteps = config_dict["duration_in_timesteps"]
+        self.variables = config_dict["variables"]  # not used yet
+        self.forcing = config_dict["forcing"]
+        self.warmup_forcing = config_dict["warmup_forcing"]
 
 
 class Jobs:
     """
     A class used to contain the Forecasts for one of more clusters.
     """
+
     def __init__(self, config_path: str, logger=logger) -> None:
         """
         Constructs all the necessary attributes for the Jobs object.
@@ -119,21 +129,27 @@ class Jobs:
         self.config = Config(config_path, self.logger)
         self.name = self.config.name
         self.logger.info(f"Preparing forecast jobs for {self.name}!")
-        
-        self.tstart = datetime.datetime.strptime(self.config.start_date, _DATE_FORMAT_SHORT)
+
+        self.tstart = datetime.datetime.strptime(
+            self.config.start_date, _DATE_FORMAT_SHORT
+        )
         self.duration = int(self.config.duration_in_timesteps)
         self.timestepsecs = int(self.config.timestepsecs)
-        self.tend = self.tstart + datetime.timedelta(seconds= self.timestepsecs * self.config.duration_in_timesteps)
-        
+        self.tend = self.tstart + datetime.timedelta(
+            seconds=self.timestepsecs * self.config.duration_in_timesteps
+        )
+
         self.forcing = self.config.forcing
         self.warmup_forcing = self.config.warmup_forcing
         for _forcing in [self.forcing, self.warmup_forcing]:
             if _forcing not in _FORCING_FILES.keys():
-                raise ValueError(f"Invalid forcing type {self.forcing}, choose from {_FORCING_FILES.keys()}")
+                raise ValueError(
+                    f"Invalid forcing type {self.forcing}, choose from {_FORCING_FILES.keys()}"
+                )
 
         self.points = gpd.read_file(self.config.points_of_interest)
         self.clusters = gpd.read_file(_CLUSTERS)
-        
+
         self.cluster_ids = []
         self.runtimes = {}
         self.forecasts = {}
@@ -152,7 +168,7 @@ class Jobs:
             forecast.prepare()
             self.forecasts[cluster_id] = forecast
 
-    def locate_clusters(self, column_with_ids: str = 'cluster_key') -> list[int]:
+    def locate_clusters(self, column_with_ids: str = "cluster_key") -> list[int]:
         """
         Finds the clusters corresponding to the points of interest using 'geopandas.sjoin'
 
@@ -167,13 +183,17 @@ class Jobs:
             A list of unique cluster ids.
         """
         self.logger.info("Finding clusters corresponding to points of interest")
-        cluster_ids = gpd.sjoin(self.points, self.clusters, how='inner', predicate='within')[column_with_ids]
-        cluster_ids = list(map(lambda x: int(x) if str(x).isdigit() else x, set(cluster_ids)))
+        cluster_ids = gpd.sjoin(
+            self.points, self.clusters, how="inner", predicate="within"
+        )[column_with_ids]
+        cluster_ids = list(
+            map(lambda x: int(x) if str(x).isdigit() else x, set(cluster_ids))
+        )
         self.logger.info(f"Found one or more clusters: {cluster_ids}")
         return cluster_ids
 
 
-class Run():
+class Run:
     """
     A class used to represent a Wflow model run.
 
@@ -196,10 +216,12 @@ class Run():
         self.logger = jobs.logger
         self.jobs = jobs
         self.cluster_id = cluster_id
-        
+
         self.dir_input = os.path.join(_ROOT, "wflow_build", str(self.cluster_id))
-        self.dir_output = os.path.join(_ROOT, "wflow_forecast", self.jobs.name, str(self.cluster_id))
-        
+        self.dir_output = os.path.join(
+            _ROOT, "wflow_forecast", self.jobs.name, str(self.cluster_id)
+        )
+
         self.toml = None
         self.duration = None
         self.max_runtime = None
@@ -215,7 +237,9 @@ class Run():
         self.state_input = None
         self.state_output = None
 
-    def create_toml(self, template: str, hydromt_config_fn: str = None, limit_logging: bool = True) -> None:
+    def create_toml(
+        self, template: str, hydromt_config_fn: str = None, limit_logging: bool = True
+    ) -> None:
         """
         Writes the configuration for the Wflow model to a TOML file.
 
@@ -229,7 +253,7 @@ class Run():
         template : str
             The path to the template TOML file to use for the Wflow model configuration.
         hydromt_config_fn : str, optional
-            The path to a hydromt_wflow config file. If provided, the configuration options in this file 
+            The path to a hydromt_wflow config file. If provided, the configuration options in this file
             will be read and used to update the Wflow model configuration.
         limit_logging: bool, optional
             Will prevent logging from the hydromt_wflow module to be added to the current log.
@@ -239,14 +263,14 @@ class Run():
         None
         """
         if limit_logging:
-            w_logger = logging.getLogger('hydromt_wflow')
+            w_logger = logging.getLogger("hydromt_wflow")
             w_logger.setLevel(logging.CRITICAL)
             w_logger.addHandler(logging.NullHandler())
         else:
             w_logger = self.logger
-    
+
         w = WflowModel(config_fn=template, logger=w_logger)
-        
+
         w.set_config("starttime", self.starttime.strftime(_DATE_FORMAT_LONG))
         w.set_config("endtime", self.endtime.strftime(_DATE_FORMAT_LONG))
         w.set_config("timestepsec", self.timestepsecs)
@@ -267,9 +291,11 @@ class Run():
 
         self.logger.info(f"Writing Wflow config (warmup) to {self.dir_output}")
         w.write_config(self.toml, self.dir_output)
-        w = None # close model
+        w = None  # close model
 
-    def estimate_max_runtime(self, clusters: gpd.GeoDataFrame, column_with_ids: str = 'cluster_key') -> float:
+    def estimate_max_runtime(
+        self, clusters: gpd.GeoDataFrame, column_with_ids: str = "cluster_key"
+    ) -> float:
         """
         Estimates the maximum runtime for the Wflow model.
 
@@ -281,7 +307,7 @@ class Run():
         Parameters
         ----------
         clusters : gpd.GeoDataFrame
-            A GeoDataFrame containing the clusters. Each row represents a cluster and must have a geometry column 
+            A GeoDataFrame containing the clusters. Each row represents a cluster and must have a geometry column
             with the polygon of the cluster.
         column_with_ids : str, optional
             The name of the column in 'clusters' that contains the cluster IDs. The default is 'cluster_key'.
@@ -293,9 +319,12 @@ class Run():
         """
         cluster = clusters[clusters[column_with_ids] == self.cluster_id]
         cluster = cluster.to_crs(epsg=3857)
-        area_cluster = cluster['geometry'].area / 1e6 # from m² to km²
-        max_runtime = area_cluster * self.duration * _MAX_RUNTIME / 1e3 # from ms to seconds
+        area_cluster = cluster["geometry"].area / 1e6  # from m² to km²
+        max_runtime = (
+            area_cluster * self.duration * _MAX_RUNTIME / 1e3
+        )  # from ms to seconds
         return max_runtime.values[0]
+
 
 class State(Run):
     """
@@ -305,6 +334,7 @@ class State(Run):
     It used the toml defined in the global variable _TOML_STATE as a template for the run settings.
 
     """
+
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
         """
         Constructs all the necessary attributes for the State object.
@@ -321,14 +351,16 @@ class State(Run):
 
         self.state_dir = os.path.join(_ROOT, "wflow_state", str(self.cluster_id))
         if not os.path.exists(self.state_dir):
-            self.logger.info("No states exist yet for this cluster and forcing combination, creating folder")
+            self.logger.info(
+                "No states exist yet for this cluster and forcing combination, creating folder"
+            )
             os.makedirs(self.state_dir)
-        
+
         self.create_state = False
         self.forcing = self.jobs.warmup_forcing
 
         self.timestepsecs = 86400
-        
+
         self.path_log = f"log_{self.jobs.name}_{self.cluster_id}_warmup.log"
         self.reinit = False
         self.path_forcing = _FORCING_FILES[self.jobs.forcing]
@@ -350,8 +382,10 @@ class State(Run):
         fname = f"{self.forcing}_*.nc" if self.forcing else "*.nc"
         files = glob.glob(os.path.join(self.state_dir, fname))
         datestrings = [fname_state.split("_")[1] for fname_state in files]
-        states = [datetime.datetime.strptime(date, _DATE_FORMAT_FNAME) for date in datestrings]
-        return sorted(states, reverse=True) # from recent to old
+        states = [
+            datetime.datetime.strptime(date, _DATE_FORMAT_FNAME) for date in datestrings
+        ]
+        return sorted(states, reverse=True)  # from recent to old
 
     def get_new_state(self, warmup_days: int = 750) -> None:
         """
@@ -373,14 +407,17 @@ class State(Run):
         index = bisect.bisect_right(available_states, self.jobs.tstart)
         if index:
             state = available_states[index - 1]
-            self.logger.info(f"Preparing new warmup run, starting at closest existing state {state}")
+            self.logger.info(
+                f"Preparing new warmup run, starting at closest existing state {state}"
+            )
             self.reinit = False
         else:
             state = self.jobs.tstart - datetime.timedelta(days=warmup_days)
             self.reinit = True
-            self.logger.info(f"Preparing new warmup run, starting with cold state {state} (warmup_days = {warmup_days})")
+            self.logger.info(
+                f"Preparing new warmup run, starting with cold state {state} (warmup_days = {warmup_days})"
+            )
         self.state_date = state
-        
 
 
 class Forecast(Run):
@@ -391,10 +428,11 @@ class Forecast(Run):
     It used the toml defined in the global variable _TOML_FORECAST as a template for the run settings.
 
     """
+
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
         super().__init__(jobs, cluster_id)
         self.state = State(jobs, cluster_id)
-    
+
         self.starttime = self.jobs.tstart
         self.endtime = self.jobs.tend
         self.timestepsecs = self.jobs.timestepsecs
@@ -417,12 +455,16 @@ class Forecast(Run):
         self.find_recent_state()
         forecast_runtime = self.estimate_max_runtime(self.jobs.clusters)
         self.jobs.runtimes[f"{self.cluster_id}_forecast"] = forecast_runtime
-        self.logger.info(f"Write Wflow TOML file for forecast, estimated runtime: {time_in_dhms(forecast_runtime)}")
-        self.create_toml(template=_TOML_FORECAST)  
+        self.logger.info(
+            f"Write Wflow TOML file for forecast, estimated runtime: {time_in_dhms(forecast_runtime)}"
+        )
+        self.create_toml(template=_TOML_FORECAST)
 
         if self.state.create_state:
             state_runtime = self.estimate_max_runtime(self.jobs.clusters)
-            self.logger.info(f"Write Wflow TOML file for state, estimated runtime: {time_in_dhms(state_runtime)}")
+            self.logger.info(
+                f"Write Wflow TOML file for state, estimated runtime: {time_in_dhms(state_runtime)}"
+            )
             self.state.create_toml(template=_TOML_STATE)
             self.jobs.runtimes[f"{self.cluster_id}_state"] = state_runtime
 
@@ -443,16 +485,24 @@ class Forecast(Run):
         -------
         None
         """
-        self.logger.info(f"Searching for most recent state (start date: {self.starttime}, recent_days: {recent_days})")
+        self.logger.info(
+            f"Searching for most recent state (start date: {self.starttime}, recent_days: {recent_days})"
+        )
         available_states = self.state.get_all_states()
-        self.logger.info(f"Found {len(available_states)} existing states for this combintation of cluster and forcing")
+        self.logger.info(
+            f"Found {len(available_states)} existing states for this combintation of cluster and forcing"
+        )
         for state in available_states:
             if state == self.starttime:
-                self.logger.info(f"Found state with start date {state}, use as warm state")
+                self.logger.info(
+                    f"Found state with start date {state}, use as warm state"
+                )
                 self.state_input = state
-                
+
             elif state < self.starttime <= state + datetime.timedelta(days=recent_days):
-                self.logger.info(f"Found state with start date {state}, use as warm state and new start time")
+                self.logger.info(
+                    f"Found state with start date {state}, use as warm state and new start time"
+                )
                 self.state_input = state
                 self.starttime = state
                 self.duration = int((self.endtime - self.starttime) / self.timestepsecs)
@@ -460,7 +510,14 @@ class Forecast(Run):
                 self.logger.info("Found no matching states, need to create a new state")
                 self.state.get_new_state()
 
+
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt=r'%Y-%m-%d %H:%M:%S')
-    runs = Jobs("p:/moonshot2-casestudy/Wflow/africa/src/0-setup/forecast_mozambique_freddy.yml")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt=r"%Y-%m-%d %H:%M:%S",
+    )
+    runs = Jobs(
+        "p:/moonshot2-casestudy/Wflow/africa/src/0-setup/forecast_mozambique_freddy.yml"
+    )
     runs.prepare()
