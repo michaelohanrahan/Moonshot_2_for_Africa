@@ -3,6 +3,7 @@ start_date: "2023-03-08"
 timestepsecs: 3600  
 duration_in_timesteps: 240
 forcing: "era5_hourly"
+warmup_forcing: "era5"
 points_of_interest: "p:/moonshot2-casestudy/SFINCS/models/source_points_sfincs.geojson"
 variables: ["discharge"]
 
