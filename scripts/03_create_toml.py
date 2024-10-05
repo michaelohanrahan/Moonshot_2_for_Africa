@@ -49,6 +49,7 @@ _FORCING_FILES = {
 _MAX_RUNTIME = 10  # upper limit for runtime, unit: ms per timestep per km²
 # TODO: dict per cluster type / number of cores
 
+
 def time_in_dhms(seconds: float) -> str:
     """
     Converts a given time in seconds to a string representation in
@@ -166,10 +167,6 @@ class Jobs:
     def prepare(self):
         """
         Prepares the Forecast for each cluster.
-
-        Returns
-        -------
-        None
         """
         self.cluster_ids = self.locate_clusters()
         for cluster_id in self.cluster_ids:
@@ -208,7 +205,6 @@ class Run:
 
     This class is used as the parent class for the Forecast and State classes.
     A forecast is represented by multiple Run instances.
-
     """
 
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
@@ -267,10 +263,6 @@ class Run:
             in this file will be read and used to update the Wflow model configuration.
         limit_logging: bool, optional
             Will prevent logging from the hydromt_wflow module to be added to the current log.
-
-        Returns
-        -------
-        None
         """
         if limit_logging:
             w_logger = logging.getLogger("hydromt_wflow")
@@ -329,7 +321,6 @@ class Run:
         -------
         max_runtime: float
             The maximum runtime of the run in seconds.
-            
         """
         cluster = clusters[clusters[column_with_ids] == self.cluster_id]
         cluster = cluster.to_crs(epsg=3857)
@@ -346,7 +337,6 @@ class State(Run):
 
     This class inherits from the Run class and is used in a Forecast object.
     It used the toml defined in the global variable _TOML_STATE as a template for the run settings.
-
     """
 
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
@@ -359,7 +349,6 @@ class State(Run):
                 A Jobs object containing the jobs for the forecast.
             cluster_id : int
                 The cluster id for the Wflow model run.
-
         """
         super().__init__(jobs, cluster_id)
         self.logger.info(f"Initializing forecast for cluster {cluster_id}")
@@ -386,7 +375,7 @@ class State(Run):
         """
         Returns a list of all available states for the Wflow model forecast.
 
-        This method retrieves all state files from the state director 
+        This method retrieves all state files from the state director
         and extracts the date from each file name. It will also filter these states
         by the selected forcing type when specified in the original config.
 
@@ -394,7 +383,6 @@ class State(Run):
         -------
         list[datetime.datetime]
             A list of datetime objects representing the dates of the available states.
-
         """
         fname = f"{self.forcing}_*.nc" if self.forcing else "*.nc"
         files = glob.glob(os.path.join(self.state_dir, fname))
@@ -442,7 +430,6 @@ class Forecast(Run):
     This class inherits from the Run class, and also contains a State object that represents
     the warm state for the Forecast. It used the toml defined in the global variable _TOML_FORECAST
     as a template for the run settings.
-
     """
 
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
@@ -496,7 +483,6 @@ class Forecast(Run):
         ----------
         recent_days : int, optional
             The number of days to consider for the search of the most recent state.
-
         """
         self.logger.info(
             f"Searching for most recent state (start date: {self.starttime},"
