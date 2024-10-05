@@ -35,6 +35,19 @@ _FORCING_FILES = {
 _MAX_RUNTIME = 10  # upper limit for runtime in ms per timestep per km²
 # TODO: dict per cluster type / number of cores
 
+# README
+# Summary of the workflow:
+# 1) A config is processed as a Config and contains:
+# - points of interests (spatial)
+# - start date and duration (temporal)
+# - model settings such as forcing type
+# 2) The Jobs consist of a Forecast per cluster
+# 3) Each Forecast requires an initial State
+# - Either an existing state is used
+# - Or a new state must be created
+# 4) Create TOML files and estimate run durations
+# - Each Forecast gets its own TOML file
+# - Only a new State requires a TOML file
 
 def time_in_dhms(seconds: float) -> str:
     """
