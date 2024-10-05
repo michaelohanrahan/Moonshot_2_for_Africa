@@ -26,7 +26,7 @@ _FORCING_FILES = {
     "chirps": "...",
     }
 
-_MAX_RUNTIME = 10 # upper limit for runtime in seconds per timestep per km²
+_MAX_RUNTIME = 10 # upper limit for runtime in ms per timestep per km²
 #TODO: dict per cluster type / number of cores
 
 '''
@@ -143,9 +143,26 @@ class Jobs:
 
 
 class Run():
+    """
+    A class used to represent a Wflow model run.
+
+    This class is used as the parent class for the Forecast and State classes.
+    A forecast is represented by multiple Run instances.
+
+    """
+
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
+        """
+        Constructs all the necessary attributes for the Run object.
+
+        Parameters
+        ----------
+            jobs : Jobs
+                A Jobs object containing all the jobs for the forecast.
+            cluster_id : int
+                The cluster id for this specific Wflow model run.
+        """
         self.logger = jobs.logger
-        self.logger.info(f"Initializing forecast for cluster {cluster_id}")
         self.jobs = jobs
         self.cluster_id = cluster_id
         
@@ -246,13 +263,31 @@ class Run():
         cluster = clusters[clusters[column_with_ids] == self.cluster_id]
         cluster = cluster.to_crs(epsg=3857)
         area_cluster = cluster['geometry'].area / 1e6 # from m² to km²
-        max_runtime = area_cluster * self.duration * _MAX_RUNTIME
-        return float(max_runtime)
+        max_runtime = area_cluster * self.duration * _MAX_RUNTIME / 1e3 # from ms to seconds
+        return max_runtime.values[0]
 
 class State(Run):
+    """
+    A class used to represent the Run used to create the warm state for a Forecast.
+
+    This class inherits from the Run class and is used in a Forecast object.
+    It used the toml defined in the global variable _TOML_STATE as a template for the run settings.
+
+    """
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
+        """
+        Constructs all the necessary attributes for the State object.
+
+        Parameters
+        ----------
+            jobs : Jobs
+                A Jobs object containing the jobs for the forecast.
+            cluster_id : int
+                The cluster id for the Wflow model run.
+        """
         super().__init__(jobs, cluster_id)
-        
+        self.logger.info(f"Initializing forecast for cluster {cluster_id}")
+
         self.state_dir = os.path.join(_ROOT, "wflow_state", str(self.cluster_id))
         if not os.path.exists(self.state_dir):
             self.logger.info("No states exist yet for this cluster and forcing combination, creating folder")
@@ -270,6 +305,17 @@ class State(Run):
         self.toml = f"{self.jobs.name}_{self.cluster_id}_warmup.toml"
 
     def get_all_states(self) -> list[datetime.datetime]:
+        """
+        Returns a list of all available states for the Wflow model forecast.
+
+        This method retrieves all state files from the state directory and extracts the date from each file name.
+        It will also filter these states by the selected forcing type when specified in the original config.
+
+        Returns
+        -------
+        list[datetime.datetime]
+            A list of datetime objects representing the dates of the available states.
+        """
         fname = f"{self.forcing}_*.nc" if self.forcing else "*.nc"
         files = glob.glob(os.path.join(self.state_dir, fname))
         datestrings = [fname_state.split("_")[1] for fname_state in files]
@@ -277,6 +323,21 @@ class State(Run):
         return sorted(states, reverse=True) # from recent to old
 
     def get_new_state(self, warmup_days: int = 750) -> None:
+        """
+        Prepares a Wflow model run to create a new state for a forecast.
+
+        This method prepares a new Wflow model run to be used as a warm state for a forecast.
+        It will try to use an exisiting state if it can be found within the tolerance of 'warmup_days'.
+
+        Parameters
+        ----------
+        warmup_days : int, optional
+            The tolerance to search for an existing state as starting point.
+
+        Returns
+        -------
+        None
+        """
         available_states = self.get_all_states()
         index = bisect.bisect_right(available_states, self.jobs.tstart)
         if index:
@@ -292,6 +353,13 @@ class State(Run):
 
 
 class Forecast(Run):
+    """
+    A class used to represent the Run that forms the Forecast for a specific cluster.
+
+    This class inherits from the Run class, and also contains a State object that represents the warm state for the Forecast.
+    It used the toml defined in the global variable _TOML_FORECAST as a template for the run settings.
+
+    """
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
         super().__init__(jobs, cluster_id)
         self.state = State(jobs, cluster_id)
@@ -307,6 +375,13 @@ class Forecast(Run):
         self.toml = f"{self.jobs.name}_{self.cluster_id}_warmup.toml"
 
     def prepare(self):
+        """
+        Prepares the Wflow model run by checking for states, writing TOML files and estimating the maximum runtime.
+
+        Returns
+        -------
+        None
+        """
         self.logger.info(f"Preparing run for cluster {self.cluster_id}")
         self.find_recent_state()
         forecast_runtime = self.estimate_max_runtime(self.jobs.clusters)
@@ -321,6 +396,22 @@ class Forecast(Run):
             self.jobs.runtimes[f"{self.cluster_id}_state"] = state_runtime
 
     def find_recent_state(self, recent_days: int = 14) -> None:
+        """
+        Finds the most recent state for a Forecast.
+
+        This method searches the most recent state for a Forecast. When a matching state if found within the tolerance of 'recent_days',
+        it will use that state and change the start date of the forecast to match this state. If no recent state is found, it will prepare a
+        new warump run that will create the state for the forecast.
+
+        Parameters
+        ----------
+        recent_days : int, optional
+            The number of days to consider for the search of the most recent state.
+
+        Returns
+        -------
+        None
+        """
         self.logger.info(f"Searching for most recent state (start date: {self.starttime}, recent_days: {recent_days})")
         available_states = self.state.get_all_states()
         self.logger.info(f"Found {len(available_states)} existing states for this combintation of cluster and forcing")
@@ -339,7 +430,6 @@ class Forecast(Run):
                 self.state.get_new_state()
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    config_path = "p:/moonshot2-casestudy/Wflow/africa/src/0-setup/forecast_mozambique_freddy.yml"
-    jobs = Jobs(config_path)
-    jobs.prepare()
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt=r'%Y-%m-%d %H:%M:%S')
+    runs = Jobs("p:/moonshot2-casestudy/Wflow/africa/src/0-setup/forecast_mozambique_freddy.yml")
+    runs.prepare()
