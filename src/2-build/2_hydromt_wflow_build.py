@@ -20,7 +20,7 @@ CLUSTERED_GEOMETRIES = os.path.join(ROOT, "data/2-interim/dissolved_basins.geojs
 
 # global settings for Wflow model
 MODE = "w"
-BUILD_CONFIG = os.path.join(ROOT, "config/02_hydromt-build.yml")
+BUILD_CONFIG = os.path.join(ROOT, "config/2_hydromt-build.yml")
 WFLOW_ROOT = os.path.join(ROOT, "data/3-input/wflow_build")
 
 # snakemake input
