@@ -10,16 +10,16 @@ setup_temp_pet_forcing:
   temp_correction: True
   dem_forcing_fn: era5_orography
 
+#setup_precip_forcing:
+#  precip_fn: era5_daily
+  
+#write_forcing:
+#  fn_out: /p/moonshot2-casestudy/Wflow/workshop-prep/forcing_era5.nc
+#  freq_out: Y
+  
 setup_precip_forcing:
-  precip_fn: era5_daily
-  
-write_forcing:
-  fn_out: forcing_era5.nc
-  freq_out: Y
-  
-setup_precip_forcing1:
   precip_fn: chirps_africa_daily_v2.0
   
-write_forcing1:
-  fn_out: forcing_chirps.nc
+write_forcing:
+  fn_out: /p/moonshot2-casestudy/Wflow/workshop-prep/forcing_chirps.nc
   freq_out: Y
