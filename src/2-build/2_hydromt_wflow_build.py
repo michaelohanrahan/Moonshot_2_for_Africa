@@ -6,7 +6,7 @@ import geopandas as gpd
 
 # setup logging
 from hydromt.log import setuplog
-logger = setuplog("Moonshot 2 - Africa", log_level=50)
+logger = setuplog("Moonshot 2 - Africa", log_level=10)
 
 # hard-coded input for testing
 from sys import platform

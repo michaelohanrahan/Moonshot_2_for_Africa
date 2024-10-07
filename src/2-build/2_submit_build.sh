@@ -1,9 +1,9 @@
 #!/bin/bash -l
-#SBATCH --job-name=moonshot2_hydromt_wflow_build_all_models                                    # Job name
-#SBATCH --output=/p/moonshot2-casestudy/Wflow/h7/hydromt_wflow_build_%j.log      # Standard output and error log
-#SBATCH --time=6:00:00                                                                 # Job duration (hh:mm:ss)
-#SBATCH --partition 24vcpu
-#SBATCH --ntasks=24                                                                 # Number of tasks (analyses) to run
+#SBATCH --job-name=moonshot2_hydromt_wflow_build_all_models
+#SBATCH --output=/p/moonshot2-casestudy/Wflow/africa/data/0-log/h7_model_building/hydromt_wflow_build_%j.log
+#SBATCH --time=6:00:00
+#SBATCH --partition 24vcpu # 192GB RAM
+#SBATCH --ntasks=24
 #SBATCH --mail-user=sebastian.hartgring@deltares.nl
 #SBATCH --mail-type=ALL
 #SBATCH --get-user-env

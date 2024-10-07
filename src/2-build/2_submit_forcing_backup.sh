@@ -10,6 +10,11 @@
 
 conda init
 conda activate hydromt-wflow
-hydromt update wflow /p/moonshot2-casestudy/Wflow/africa/data/3-input/wflow_build/1814 -i /p/moonshot2-casestudy/Wflow/africa/config/2_hydromt-backup-forcing.yml --dd -vvv
-hydromt update wflow /p/moonshot2-casestudy/Wflow/africa/data/3-input/wflow_build/1816 -i /p/moonshot2-casestudy/Wflow/africa/config/2_hydromt-backup-forcing.yml --dd -vvv
-hydromt update wflow /p/moonshot2-casestudy/Wflow/africa/data/3-input/wflow_build/1844 -i /p/moonshot2-casestudy/Wflow/africa/config/2_hydromt-backup-forcing.yml --dd -vvv
+# hydromt update wflow /p/moonshot2-casestudy/Wflow/africa/data/3-input/wflow_build/1844 -i /p/moonshot2-casestudy/Wflow/workshop-prep/2_hydromt-backup-forcing-1844.yml -d /p/moonshot2-casestudy/Wflow/africa/config/deltares_data_custom.yml -vvv
+# conda deactivate
+# conda activate hydromt-wflow
+hydromt update wflow /p/moonshot2-casestudy/Wflow/africa/data/3-input/wflow_build/1814 -i /p/moonshot2-casestudy/Wflow/workshop-prep/2_hydromt-backup-forcing-1814.yml -d /p/moonshot2-casestudy/Wflow/africa/config/deltares_data_custom.yml -vvv
+conda deactivate
+conda activate hydromt-wflow
+hydromt update wflow /p/moonshot2-casestudy/Wflow/africa/data/3-input/wflow_build/1816 -i /p/moonshot2-casestudy/Wflow/workshop-prep/2_hydromt-backup-forcing-1816.yml -d /p/moonshot2-casestudy/Wflow/africa/config/deltares_data_custom.yml -vvv
+
