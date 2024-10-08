@@ -3,7 +3,6 @@ import xarray as xr
 import argparse
 import traceback
 from helper import setup_logging
-from hydromt_wflow import WflowModel as WM
 from hydromt import DataCatalog
 import os
 from pathlib import Path
@@ -12,10 +11,14 @@ from dask.diagnostics import ProgressBar
 import time
 from helper import syscheck
 from glob import glob
-from tqdm import tqdm
-from icecream import ic
+import numpy as np
+import hydromt.workflows.forcing
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+from cartopy.util import add_cyclic_point
 
-def write_forcing(ds, fn_out, freq_out='Y', chunksize=1, decimals=2, time_units="days since 1900-01-01T00:00:00", **kwargs):
+def write_forcing(ds, fn_out, freq_out='Y', chunksize=1, decimals=2, time_units="days since 1900-01-01", **kwargs):
     """
     Write dataset to NetCDF files with a specified frequency (e.g., yearly).
     """
@@ -33,12 +36,12 @@ def write_forcing(ds, fn_out, freq_out='Y', chunksize=1, decimals=2, time_units=
     for label, ds_gr in ds.resample(time=freq_out):
         year = ds_gr["time"].dt.year[0].item()
         fn_out_gr = fn_out.replace('*', str(year))
-
+        ##ic(fn_out_gr)
         if not os.path.isdir(os.path.dirname(fn_out_gr)):
             os.makedirs(os.path.dirname(fn_out_gr))
         
         delayed_obj = ds_gr.to_netcdf(fn_out_gr, encoding=encoding, mode="w", compute=False)
-        
+        print(f"{'#'*20}\nWRITING YEAR: {year} to: {fn_out_gr}\n{'#'*20}")
         with ProgressBar():
             delayed_obj.compute(**kwargs)
 
@@ -55,23 +58,80 @@ def vars(args):
         return variables
 
 def check_dates(outfile):
-    if glob(outfile)==[]:
+    files = glob(outfile)
+    if not files:
         return None, None
     else:
-        ds = xr.open_mfdataset(outfile)
-        dates = pd.to_datetime(ds.time.values)
+        all_times = []
+        for file in files:
+            with xr.open_dataset(file) as ds:
+                # Drop the spatial_ref coordinate if it exists
+                if 'spatial_ref' in ds.coords:
+                    ds = ds.drop('spatial_ref')
+                if 'time' in ds.dims:
+                    all_times.extend(ds.time.values)
+        
+        if not all_times:
+            return None, None
+        
+        dates = pd.to_datetime(all_times)
         tmin = dates.min()
         tmax = dates.max()
         return tmin, tmax
 
-def calc_pet(grid, args, l, dc):
-    DEM = dc.get_rasterdataset(
-        'era5_orography'
-    ).isel(time=0, drop=True)
-    
-    l.warning("Using ERA5 orography for DEM")
+def kelvin_to_celsius(temp_kelvin):
+    return temp_kelvin - 273.15
 
-    assert DEM.raster.identical_grid(grid) == True, "The grids are not identical"
+def pet_debruin(temp, press, k_in, k_ext, timestep=86400, cp=1005.0, beta=20.0, Cs=110.0):
+    esat = 6.112 * np.exp((17.67 * temp) / (temp + 243.5))
+    slope = esat * (17.269 / (temp + 243.5)) * (1.0 - (temp / (temp + 243.5)))
+    lam = (2.502 * 10**6) - (2250.0 * temp)
+    gamma = (cp * press) / (0.622 * lam)
+    ep_joule = (
+        (slope / (slope + gamma))
+        * (((1.0 - 0.23) * k_in) - (Cs * (k_in / (k_ext + 0.00001))))
+    ) + beta
+    ep_joule = xr.where(k_ext == 0.0, 0.0, ep_joule)
+    pet = ((ep_joule / lam) * timestep).astype(np.float32)
+    pet = xr.where(pet > 0.0, pet, 0.0)
+    return pet
+
+def plot_annual_mean(pet, year, output_dir):
+    annual_mean = pet.mean(dim='time')
+    
+    # Add cyclic point to prevent white line at 180 degrees longitude
+    data_cyclic, lon_cyclic = add_cyclic_point(annual_mean.values, coord=annual_mean.x)
+    
+    # Create a new figure with a Robinson projection
+    fig = plt.figure(figsize=(15, 10))
+    ax = fig.add_subplot(1, 1, 1, projection=ccrs.Robinson())
+    
+    # Set global extent and add coastlines
+    ax.set_global()
+    ax.add_feature(cfeature.COASTLINE)
+    ax.add_feature(cfeature.BORDERS, linestyle=':')
+    
+    # Plot the data
+    im = ax.pcolormesh(lon_cyclic, annual_mean.y, data_cyclic, 
+                       transform=ccrs.PlateCarree(), 
+                       cmap='viridis')
+    
+    # Add colorbar
+    cbar = plt.colorbar(im, orientation='horizontal', pad=0.05, aspect=50)
+    cbar.set_label('PET (mm/day)')
+    
+    # Set title
+    plt.title(f'Annual Mean PET for {year}', fontsize=16)
+    
+    # Save the figure
+    plot_path = Path(output_dir) / f'annual_mean_pet_{year}_robinson.png'
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+def calc_pet(grid, args, l, dc):
+    DEM = dc.get_rasterdataset('era5_orography').isel(time=0, drop=True)
+    l.info("Using ERA5 orography for DEM")
+    assert DEM.raster.identical_grid(grid), "The grids are not identical"
     
     variables = vars(args)
     if 'u10' in grid.data_vars:
@@ -81,124 +141,72 @@ def calc_pet(grid, args, l, dc):
 
     temp_in = hydromt.workflows.forcing.temp(
         grid['temp'], dem_model=DEM, dem_forcing=DEM, lapse_correction=False, logger=l, freq=None)
-    if "penman-monteith" in args.method:
-        l.info("Calculating max and min temperature")
-        temp_max_in = hydromt.workflows.forcing.temp(
-            grid['temp_max'], dem_model=DEM, dem_forcing=DEM, lapse_correction=False, logger=l, freq=None).rename('temp_max')
-        temp_min_in = hydromt.workflows.forcing.temp(
-            grid['temp_min'], dem_model=DEM, dem_forcing=DEM, lapse_correction=False, logger=l, freq=None).rename('temp_min')
-        temp_in = xr.merge([temp_in, temp_max_in, temp_min_in])
-    year = grid.time.dt.year[0].item()
-    das = []
-    for t in tqdm(grid.time.values, desc=f'Calculating PET {year}', unit='day', position=0, total=len(grid.time.values), colour='green'):
-        day = hydromt.workflows.forcing.pet(
-            grid[variables[1:]].sel(time=slice(t,t), drop=False), temp=temp_in.sel(time=slice(t,t), drop=False), dem_model=DEM, method=args.method, press_correction=False,
-            wind_correction=False, wind_altitude=False, freq='D')
-        das.append(day)
-    pet = xr.concat(das, dim='time')
-    l.info(f"Finished calculating PET for {year}")
+    
+    # Convert pressure from Pa to hPa
+    grid['press_msl'] = grid['press_msl'] / 100
+
+    try:
+        pet = pet_debruin(
+            temp=temp_in,
+            press=grid['press_msl'],
+            k_in=grid['kin'],
+            k_ext=grid['kout']
+        )
+        
+        if np.isnan(pet.values).all():
+            l.error(f"All PET values are NaN for the year. Debugging pet function...")
+        else:
+            l.info(f"PET stats: min={pet.min().values.item():.2f}, max={pet.max().values.item():.2f}, mean={pet.mean().values.item():.2f}")
+        
+    except Exception as e:
+        l.error(f"Error in PET calculation: {str(e)}")
+        l.exception("Exception details:")
+        pet = xr.full_like(grid, np.nan)
+
     return pet
 
 def main(args):
     os.chdir(Path(args.cwd))
-    # Read configuration and set up output directory
-    outdir = Path(args.cwd, 'data', '4-output', 'PET_global').as_posix()
+    outdir = Path(args.cwd, 'data', '3-input', 'global_era5_pet').as_posix()
     os.makedirs(outdir, exist_ok=True)
+    plot_dir = Path(outdir, args.method)
+    os.makedirs(plot_dir, exist_ok=True)
     outfile = Path(outdir, f'{args.tpf}_{args.method}_PET_daily_*.nc')
-    
-    # Check existing data dates
-    tmin, tmax = check_dates(str(outfile))
-    
-    # Set up logging
-    l = setup_logging('data/0-log', '00_build_PET.log')
-    l.info("Building model assuming access to deltares_data catalog")
-    l.info(f"Writing output to {outfile}")
-    
-    # Initialize data catalog
-    drive = syscheck()
-    dc = DataCatalog(f'{drive}/wflow_global/hydromt/deltares_data.yml')
-    
-    # Load input data based on existing dates or from the beginning
-    if tmin is not None:
-        l.info(f"Calculating PET from {tmin} to {tmax}")
-        grid = dc.get_rasterdataset(
-            args.tpf
-        ).sel(time=slice(tmin,tmax)).chunk({"time": 1, "latitude": -1, "longitude": -1})
-    else:
-        l.info("Calculating PET from the beginning of the dataset")
-        grid = dc.get_rasterdataset(
-            args.tpf
-        ).chunk({"time": 1, "latitude": -1, "longitude": -1})
-        
-    l.info(f"calculating PET with method: {args.method}")
-    
-    # Process data year by year
-    year_range = pd.date_range(start=grid.time.values[0], end=grid.time.values[-1], freq='Y')
-    
-    for year in year_range:
-        # Calculate PET for the current year
-        g_year = grid.sel(time=slice(year, year+pd.Timedelta(days=365)))
-        pet = calc_pet(g_year, args, l, dc)
-        
-        # Prepare output dataset with metadata
-        ds_out = xr.Dataset({'pet': pet}, attrs={'description': f'Potential evapotranspiration calculated using {args.method} method with {args.tpf} temperature forcing',
-                                                'meteo data source':f"{args.tpf}",
-                                                'method': f"{args.method}",
-                                                'dem': 'era5_orography',
-                                                'timestep': 'daily',
-                                                'lapsecorrected': 'False',
-                                                'presscorrected': 'False',
-                                                'windaltitude': 'False',
-                                                'units': 'mm/day',
-                                                'last updated': time.ctime(),
-                                                **grid.attrs})
-        
-        # Rename coordinates and write output
-        ds_out = ds_out.rename({'latitude': 'y', 'longitude': 'x'})
-        write_forcing(ds_out, str(outfile), freq_out='Y', chunksize=1, decimals=2, time_units="days since 1900-01-01T00:00:00")
-    outdir = Path(args.cwd, 'data', '4-output', 'PET_global').as_posix()
-    os.makedirs(outdir, exist_ok=True)
-    outfile = Path(outdir, f'{args.tpf}_{args.method}_PET_daily_*.nc')
-    
-    #TODO: Make it so that we append the new data to the existing file
-    tmin, tmax = check_dates(str(outfile))
     
     l = setup_logging('data/0-log', '00_build_PET.log')
     l.info("Building model assuming access to deltares_data catalog")
     l.info(f"Writing output to {outfile}")
     
     drive = syscheck()
-    
     dc = DataCatalog(f'{drive}/wflow_global/hydromt/deltares_data.yml')
     
-    if tmin is not None:
-        l.info(f"Calculating PET from {tmin} to {tmax}")
-        grid = dc.get_rasterdataset(
-            args.tpf
-        ).sel(time=slice(tmin,tmax)).chunk({"time": 1, "latitude": -1, "longitude": -1})
-        
-    else:
-        l.info("Calculating PET from the beginning of the dataset")
-        grid = dc.get_rasterdataset(
-            args.tpf
-        ).chunk({"time": 1, "latitude": -1, "longitude": -1})
-        
-    l.info(f"calculating PET with method: {args.method}")
-    l.info(f"Calculating PET for {grid.time.values[0]} to {grid.time.values[-1]}")
-    l.info(f"Using {args.tpf} as the temperature forcing")
-    l.info(f"Using {args.method} as the PET method")
-    l.info(f"Using {args.dem} as the DEM")  
-    l.info(f"Using {args.timestep} as the timestep")
-    l.info(f"Lapse correction set to: {args.lapsecorrected}")
-    l.info(f"Pressure correction set to: {args.presscorrected}")
-    l.info(f"Wind altitude correction set to: {args.windaltitude}")
-    l.info(f"Using {args.lastupdated} as the lastupdated")
+    grid = dc.get_rasterdataset(args.tpf)
     
-    year_range = pd.date_range(start=grid.time.values[0], end=grid.time.values[-1], freq='Y')
+    l.info(f"Calculating PET with method: {args.method}")
     
-    for year in year_range:
-        g_year = grid.sel(time=slice(year, year+pd.Timedelta(days=365)))
+    start_year = grid.time.dt.year.max().item()
+    end_year = grid.time.dt.year.min().item()
+    
+    for year in range(start_year, end_year - 1, -1):
+        year_start = pd.Timestamp(f"{year}-01-01")
+        year_end = pd.Timestamp(f"{year}-12-31")
+        
+        g_year = grid.sel(time=slice(year_start, year_end))
+        
+        if len(g_year.time) == 0:
+            l.info(f"No data available for year {year}, skipping.")
+            continue
+        
+        output_file = Path(outdir) / f'{args.tpf}_{args.method}_PET_daily_{year}.nc'
+        
+        if output_file.exists() and not args.overwrite:
+            l.warning(f"PET file for year {year} already exists. Skipping. Use --overwrite to recalculate.")
+            continue
+        
+        l.info(f"Processing year {year}")
         pet = calc_pet(g_year, args, l, dc)
+        l.info(f"PET calculated for year {year}, time length: {len(pet.time.values)}")
+        
         ds_out = xr.Dataset({'pet': pet}, attrs={'description': f'Potential evapotranspiration calculated using {args.method} method with {args.tpf} temperature forcing',
                                                 'meteo data source':f"{args.tpf}",
                                                 'method': f"{args.method}",
@@ -212,29 +220,28 @@ def main(args):
                                                 **grid.attrs})
         
         ds_out = ds_out.rename({'latitude': 'y', 'longitude': 'x'})
-        write_forcing(ds_out, str(outfile), freq_out='Y', chunksize=1, decimals=2, time_units="days since 1900-01-01T00:00:00")
+        l.info(f"Writing PET data for year {year}")
+        write_forcing(ds_out, str(output_file), freq_out='Y', chunksize=1, decimals=2, time_units="days since 1900-01-01T00:00:00")
+        l.info(f"Finished writing PET data for year {year}")
+        
+        # Plot annual mean
+        plot_annual_mean(pet, year, plot_dir)
+        l.info(f"Annual mean plot created for year {year}")
     
-    #write dataflags in same folder as readme
-    #if files are not full years, write a dataflag file
-    files = glob(str(outfile))
-    
-    for file in files:
-        ds = xr.open_dataset(file)
-        if ds.time.size < 365:
-            with open(os.path.join(outdir, 'dataflags.txt'), 'a') as f:
-                f.write(f'{file} does not contain a full 365 days\n')
-        ds.close()
+    l.info("PET calculation completed for all available years.")
 
 if __name__ == "__main__":
     try:
         drive = syscheck()
         parser = argparse.ArgumentParser(description='Build global PET with available data')
         parser.add_argument('--cwd', type=str, help='the current working directory', default=f'{drive}/moonshot2-casestudy/Wflow/africa')
-        parser.add_argument('--tpf', type=str, help='the temperature forcing', default='era5_daily_zarr')
-        parser.add_argument('--method', type=str, help='the method to use for PET calculation', default='penman-monteith_tdew')
+        parser.add_argument('--tpf', type=str, help='the temperature forcing', default='era5_daily')
+        parser.add_argument('--method', type=str, help='the method to use for PET calculation', default='debruin')
+        parser.add_argument('--overwrite', action='store_true', help='overwrite existing PET files')
         args = parser.parse_args()
-
         main(args)
-
-    except SystemExit:
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
         traceback.print_exc()
+    finally:
+        print("Script finished.")
