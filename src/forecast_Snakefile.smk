@@ -1,14 +1,22 @@
-import glob
+import sys
 import os
-# from snakemake.io import glob_wildcards
-#import dataclass Jobs
-from src.2-build.2_create_forecast import Jobs
+
+# Add the parent directory of 'src' to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+print("Python path:")
+for path in sys.path:
+    print(path)
+import importlib
+create_forecast = importlib.import_module('2_build.2_create_forecast')
+Jobs = create_forecast.Jobs
+Config = create_forecast.Config
 from icecream import ic
 from scripts.helper import syscheck
 
 workdir: f"{syscheck()}/moonshot2-casestudy/Wflow/africa"
 
 print(f"{'*'*10}\n::CWD:: {os.getcwd()}\n{'*'*10}")
+
 
 def get_clusters(forecast):
     jobs = Jobs(f"forecast_config/{forecast}.yml")  # Create a Jobs object
