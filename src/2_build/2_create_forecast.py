@@ -49,10 +49,6 @@ _FORCING_FILES = {
 _MAX_RUNTIME = 10  # upper limit for runtime, unit: ms per timestep per km²
 # TODO: dict per cluster type / number of cores
 
-<<<<<<< HEAD
-_CLUSTER_TIME = "01-00:00:00"
-=======
->>>>>>> 3d91444043c668e6643da4d1621b0cecda21c325
 
 def time_in_dhms(seconds: float) -> str:
     """
