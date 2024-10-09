@@ -1,0 +1,8 @@
+Summarized: results/A_control_processed.txt
+Summarized: results/A_treatment1_processed.txt
+Summarized: results/A_treatment2_processed.txt
+Summarized: results/B_control_processed.txt
+Summarized: results/B_treatment1_processed.txt
+Summarized: results/C_control_processed.txt
+Summarized: results/C_treatment2_processed.txt
+Summarized: results/C_treatment3_processed.txt
