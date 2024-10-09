@@ -1,1 +1,0 @@
-'Processing C under control condition' 
