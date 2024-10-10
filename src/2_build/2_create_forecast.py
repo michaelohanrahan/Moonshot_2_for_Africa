@@ -166,6 +166,10 @@ class Jobs:
         self.runtimes = {}
         self.forecasts = {}
 
+    def get_state_file_name(self, forecast, cluster):
+        return self.forecasts[cluster].state_file_name
+
+    
     def prepare(self):
         """
         Prepares the Forecast for each cluster.
@@ -371,7 +375,7 @@ class State(Run):
         self.reinit = False
         self.path_forcing = _FORCING_FILES[self.jobs.forcing]
         self.path_output = f"{self.jobs.name}_{self.cluster_id}_output.nc"
-        self.toml = f"{self.jobs.name}_{self.cluster_id}_warmup.toml"
+        self.toml = "warmup.toml"
 
     def get_all_states(self) -> list[datetime.datetime]:
         """
@@ -447,6 +451,7 @@ class Forecast(Run):
         self.path_forcing = _FORCING_FILES[self.jobs.forcing]
         self.path_output = f"{self.jobs.name}_{self.cluster_id}_output.nc"
         self.toml = f"{self.jobs.name}_{self.cluster_id}_warmup.toml"
+        self.state_file_name = None  # Add this line
 
     def prepare(self):
         """
@@ -492,7 +497,7 @@ class Forecast(Run):
         )
         available_states = self.state.get_all_states()
         self.logger.info(
-            f"Found {len(available_states)} existing states for this combintation"
+            f"Found {len(available_states)} existing states for this combination"
             " vof cluster and forcing"
         )
         for state in available_states:
@@ -512,6 +517,8 @@ class Forecast(Run):
             else:
                 self.logger.info("Found no matching states, need to create a new state")
                 self.state.get_new_state()
+
+        self.state_file_name = f"{self.forcing}_{self.state_input.strftime(_DATE_FORMAT_FNAME)}.nc"
 
 
 if __name__ == "__main__":
