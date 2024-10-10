@@ -18,6 +18,8 @@ import os
 import bisect
 import yaml
 import glob
+import argparse
+import traceback
 
 import geopandas as gpd
 from hydromt_wflow import WflowModel
@@ -25,7 +27,7 @@ from hydromt.config import configread
 
 logger = logging.getLogger("MS2")
 
-_ROOT = os.path.normpath("p:/moonshot2-casestudy/Wflow/africa/src/3-model")
+_ROOT = os.path.normpath("p:/moonshot2-casestudy/Wflow/africa/data/")
 _TOML_STATE = os.path.normpath(
     "p:/moonshot2-casestudy/Wflow/africa/config/03_warmup_wflow_sbm.toml"
 )
@@ -222,9 +224,9 @@ class Run:
         self.jobs = jobs
         self.cluster_id = cluster_id
 
-        self.dir_input = os.path.join(_ROOT, "wflow_build", str(self.cluster_id))
+        self.dir_input = os.path.join(_ROOT, "3-input", "wflow_build", str(self.cluster_id))
         self.dir_output = os.path.join(
-            _ROOT, "wflow_forecast", self.jobs.name, str(self.cluster_id)
+            _ROOT, "4-output", "wflow_forecast", self.jobs.name, str(self.cluster_id)
         )
 
         self.toml = None
@@ -353,7 +355,7 @@ class State(Run):
         super().__init__(jobs, cluster_id)
         self.logger.info(f"Initializing forecast for cluster {cluster_id}")
 
-        self.state_dir = os.path.join(_ROOT, "wflow_state", str(self.cluster_id))
+        self.state_dir = os.path.join(_ROOT, "4-output", "wflow_state", str(self.cluster_id))
         if not os.path.exists(self.state_dir):
             self.logger.info(
                 "No states exist yet for this cluster and forcing combination, creating folder"
@@ -518,7 +520,15 @@ if __name__ == "__main__":
         format="%(asctime)s - %(levelname)s - %(message)s",
         datefmt=r"%Y-%m-%d %H:%M:%S",
     )
-    runs = Jobs(
-        "p:/moonshot2-casestudy/Wflow/africa/src/0-setup/forecast_mozambique_freddy.yml"
-    )
-    runs.prepare()
+    try:
+        args = argparse.ArgumentParser()
+        args.add_argument("--config", type=str, required=True)
+        args = args.parse_args()
+        runs = Jobs(
+            args.config
+        )
+        runs.prepare()
+    except Exception as e:
+        traceback.print_exc()
+        logger.error(e) 
+        exit(1)

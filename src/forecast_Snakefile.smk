@@ -13,6 +13,7 @@ from icecream import ic
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from helper import syscheck
 import json
+import yaml
 
 workdir: f"{syscheck()}/moonshot2-casestudy/Wflow/africa"
 
@@ -49,7 +50,7 @@ def prepare(base_dir):
     for config in CONFIGS:
         print(config)
 
-    FORECASTS = [Path(config).name.split(".")[0] for config in CONFIGS]
+    FORECASTS = [yaml.safe_load(open(config))["name"] for config in CONFIGS]
     print("\nFORECASTS:")
     for forecast in FORECASTS:
         print(forecast)
@@ -105,18 +106,8 @@ Running Wflow for each cluster, for each forecast.
 rule prepare_forecast_instate_config:
     output:
         file = str(output_dir)+"/{forecast}/{cluster}/wflow_instate.toml"
-    run:
-        import importlib
-        create_forecast = importlib.import_module('2_build.2_create_forecast')
-        Jobs = create_forecast.Jobs
-        Run = create_forecast.Run
-        State = create_forecast.State
-
-        jobs = Jobs(Path(base_dir,wildcards.forecast+".yml").as_posix())
-        run = Run(jobs, wildcards.cluster)
-        run.prepare()
-        state = State(jobs, wildcards.cluster)
-        state.create_state()
+    script:
+        "2_build/2_create_forecast.py "
 
 
 """
@@ -129,16 +120,19 @@ rule run_instate:
     input:
         rules.prepare_forecast_instate_config.output.file
     params:
-        project = Path(base_dir, "bin").as_posix()
+        project=Path(base_dir, "bin").as_posix()
     output:
         file = str(output_dir)+"/{forecast}/{cluster}/instate.nc"
+    resources:
+        mem = 32000
     shell:
-        """julia --project={params.project} run_script.jl {input}"""
+        """julia --project='{params.project}' run_script.jl {input}"""
 
 """
 ::: TOUCH INSTATE :::
 Touching the instate run for each forecast, cluster.
 Making sure the instate run is done for each before the final run begins. 
+(I think this is necessary so )
 """
 
 rule touch_instate:
@@ -155,12 +149,14 @@ Running the forecast for each forecast, cluster.
 
 rule run_forecast:
     input:
-        instate = rules.touch_instate.input.file
-        touched = rules.touch_instate.output.file
+        instate = rules.touch_instate.input,
+        touched = rules.touch_instate.output
+    params: 
+        project=Path(base_dir, "bin").as_posix()
     output:
         file = str(output_dir)+"/{forecast}/{cluster}/output_scalar.nc"
     shell:
-        """julia --project={params.project} run_script.jl {input}"""
+        """julia --project='{params.project}' run_script.jl {input}"""
 
 # rule run_forecast:
 #     input:
