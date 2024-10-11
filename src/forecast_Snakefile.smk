@@ -122,7 +122,9 @@ Running Wflow for each cluster, for each forecast.
 
 rule prepare_forecast_instate_config:
     output:
-        file = str(output_dir)+"/{forecast}/{cluster}/warmup.toml"
+        file = [Path(output_dir, "{forecast}", "{cluster}", "warmup.toml").as_posix() 
+                for forecast in FORECASTS 
+                for cluster in CLUSTERS[forecast]]
     params:
         config = Path(CONFIGS["{forecast}"]).as_posix()
     localrule: True
@@ -144,10 +146,15 @@ rule run_forecast:
         file = str(output_dir)+"/{forecast}/{cluster}/output_scalar.nc"
     run:
         if os.path.isfile(params.warmup):
-            shell:
-                """julia --project='{params.project}' run_script.jl {params.warmup}"""
-                """julia --project='{params.project}' run_script.jl {input.toml}"""
+            shell(
+                """
+                julia --project='{params.project}' run_script.jl {params.warmup}
+                julia --project='{params.project}' run_script.jl {input.toml}
+                """
+            )
         else:
-            shell:
-                """julia --project='{params.project}' run_script.jl {input.toml}"""
- 
+            shell(
+                """
+                julia --project='{params.project}' run_script.jl {input.toml}
+                """
+            )
