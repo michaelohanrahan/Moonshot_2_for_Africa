@@ -145,6 +145,7 @@ rule run_forecast:
     output:
         file = str(output_dir)+"/{forecast}/{cluster}/output_scalar.nc"
     run:
+    
         if os.path.isfile(params.warmup):
             shell(
                 """
