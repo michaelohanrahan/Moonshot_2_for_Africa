@@ -539,7 +539,7 @@ class Forecast(Run):
         available_states = self.state.get_all_states()
         self.logger.info(
             f"Found {len(available_states)} existing states for this combination"
-            " vof cluster and forcing"
+            " of cluster and forcing"
         )
         self.state_input = None  # Initialize to None
         for state in available_states:
@@ -578,7 +578,12 @@ if __name__ == "__main__":
     try:
         args = argparse.ArgumentParser()
         args.add_argument("--config", type=str, required=True)
+        args.add_argument("--os", type=str, required=False, choices=["windows", "linux"])
         args = args.parse_args()
+        
+        if args.os:
+            DRIVE = "p:" if args.os == "windows" else "p/"
+        
         runs = Jobs(
             args.config
         )
