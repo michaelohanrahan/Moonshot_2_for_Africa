@@ -376,7 +376,8 @@ class Run:
         w.set_config("input", "vertical", "precipitation", self.var_precip)
         w.set_config("input", "path_pet", self.path_pet)
         w.set_config("input", "vertical", "potential_evaporation", self.var_pet)
-        w.set_config("input", "path_temp", self.path_temp)
+        w.set_config("input", "path_temp", "netcdf.variable.name", self.path_temp)
+        w.set_config("input", "path_temp", "offset", -273.15)
         w.set_config("input", "vertical", "temperature", self.var_temp)
 
         w.set_config("model", "reinit", self.reinit)
