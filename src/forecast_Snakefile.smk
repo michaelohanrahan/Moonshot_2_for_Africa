@@ -98,13 +98,6 @@ def get_warmup_toml(FORECASTS, CLUSTERS):
             for forecast in FORECASTS 
             for cluster in CLUSTERS[forecast]]
 
-
-# def get_instate_files(FORECASTS, CLUSTERS, STATE_FILES):
-#     return [str(output_dir)+f"/wflow_state/{cluster}/{file}",
-#             for forecast in FORECASTS 
-#             for cluster in CLUSTERS[forecast] 
-#             for file in STATE_FILES[forecast][cluster]]
-
 def get_all_output_files(filename, FORECASTS, CLUSTERS):
     return [str(output_dir)+f"/{forecast}/{cluster}/"+filename 
             for forecast in FORECASTS 
@@ -112,8 +105,9 @@ def get_all_output_files(filename, FORECASTS, CLUSTERS):
 
 rule all:
     input: 
-        get_warmup_toml(FORECASTS, CLUSTERS),
-        get_all_output_files("output_scalar.nc", FORECASTS, CLUSTERS),
+        get_output_files("warmup.toml", FORECASTS, CLUSTERS),
+        get_output_files("forecast.toml", FORECASTS, CLUSTERS),
+        get_output_files("output_scalar.nc", FORECASTS, CLUSTERS),
          
 """ 
 ::: PREPARE FORECAST :::
@@ -122,11 +116,10 @@ Running Wflow for each cluster, for each forecast.
 
 rule prepare_forecast_instate_config:
     output:
-        file = [Path(output_dir, "{forecast}", "{cluster}", "warmup.toml").as_posix() 
-                for forecast in FORECASTS 
-                for cluster in CLUSTERS[forecast]]
+        wtom = str(output_dir)+"/{forecast}/{cluster}/warmup.toml",
+        ftom = str(output_dir)+"/{forecast}/{cluster}/forecast.toml",
     params:
-        config = Path(CONFIGS["{forecast}"]).as_posix()
+        config = lambda wildcards: FC_DICT[wildcards.forecast]
     localrule: True
     script:
         "2_build/2_create_forecast.py {params.config}"
@@ -139,14 +132,12 @@ Running the instate run for each forecast, cluster.
 
 rule run_forecast:
     input:
-        # instate = rules.touch_instate.input,
-        # touched = rules.touch_instate.output
-        toml = str(output_dir)+"/{forecast}/{cluster}/wflow_sbm_forecast.toml"
+        toml = str(output_dir)+"/{forecast}/{cluster}/forecast.toml"
     params: 
         # project=Path(base_dir, "bin").as_posix()
         warmup = str(output_dir)+"/{forecast}/{cluster}/wflow_sbm_warmup.toml"
     output:
-        file = str(output_dir)+"/{forecast}/{cluster}/output_scalar.nc"
+        file = str(output_dir)+"/{forecast}/{cluster}/output.nc"
     run:
     
         if os.path.isfile(params.warmup):

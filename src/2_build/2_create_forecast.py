@@ -399,7 +399,7 @@ class State(Run):
         ]
         return sorted(states, reverse=True)  # from recent to old
 
-    def get_new_state(self, warmup_days: int = 750) -> None:
+    def get_new_state(self, warmup_days: int = 750) -> datetime.datetime:
         """
         Prepares a Wflow model run to create a new state for a forecast.
 
@@ -428,6 +428,7 @@ class State(Run):
                 f"starting with cold state {state} (warmup_days = {warmup_days})"
             )
         self.state_date = state
+        return state  # Return the datetime object
 
 
 class Forecast(Run):
@@ -441,17 +442,17 @@ class Forecast(Run):
 
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
         super().__init__(jobs, cluster_id)
+        self.forcing = jobs.forcing  # Add this line
         self.state = State(jobs, cluster_id)
-
         self.starttime = self.jobs.tstart
         self.endtime = self.jobs.tend
         self.timestepsecs = self.jobs.timestepsecs
         self.duration = self.jobs.duration
         self.path_log = f"log_{self.jobs.name}_{self.cluster_id}_forecast.log"
         self.reinit = False
-        self.path_forcing = _FORCING_FILES[self.jobs.forcing]
-        self.path_output = f"{self.jobs.name}_{self.cluster_id}_output.nc"
-        self.toml = f"{self.jobs.name}_{self.cluster_id}_forecast.toml"
+        self.path_forcing = _FORCING_FILES[self.forcing]  # Use self.forcing instead of self.jobs.forcing
+        self.path_output = f"output.nc"
+        self.toml = "forecast.toml"
 
     def prepare(self):
         """
@@ -500,12 +501,14 @@ class Forecast(Run):
             f"Found {len(available_states)} existing states for this combination"
             " vof cluster and forcing"
         )
+        self.state_input = None  # Initialize to None
         for state in available_states:
             if state == self.starttime:
                 self.logger.info(
                     f"Found state with start date {state}, use as warm state"
                 )
                 self.state_input = state
+                break  # Exit loop once we find a matching state
 
             elif state < self.starttime <= state + datetime.timedelta(days=recent_days):
                 self.logger.info(
@@ -514,9 +517,14 @@ class Forecast(Run):
                 self.state_input = state
                 self.starttime = state
                 self.duration = int((self.endtime - self.starttime) / self.timestepsecs)
-            else:
-                self.logger.info("Found no matching states, need to create a new state")
-                self.state.get_new_state()
+                break  # Exit loop once we find a matching state
+
+        if self.state_input is None:
+            self.logger.info("Found no matching states, need to create a new state")
+            self.state_input = self.state.get_new_state()  # Assume this returns a datetime
+
+        if self.state_input is None:
+            raise ValueError("Failed to set state_input to a valid datetime")
 
         self.state_file_name = f"{self.forcing}_{self.state_input.strftime(_DATE_FORMAT_FNAME)}.nc"
 
