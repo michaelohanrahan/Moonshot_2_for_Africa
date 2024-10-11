@@ -163,7 +163,7 @@ function update_forcing_regrid!(model, correct2sea, correct2dem)
             Wflow.read_y_axis(dataset)
         ]
 
-        if max(xy_orig[1]) > 180
+        if maximum(xy_orig[1]) > 180
             # Convert longitude range from (0, 360) to (-180, 180)
             xy_orig[1], data = convert_longitude(xy_orig[1], data)
         end
@@ -344,8 +344,8 @@ end
 
 function custom_prepare_reader(config)
     datasets = []
-    paths_forcing = [config.input.path_precip, config.input.path_pet, config.input.path_temp]
-    params_forcing = ["precipitation", "potential evaporation", "temperature"]
+    paths_forcing = [config.input.path_pet, config.input.path_precip,  config.input.path_temp]
+    params_forcing = ["potential evaporation", "precipitation" , "temperature"]
     for (path_forcing, param_forcing) in zip(paths_forcing, params_forcing)
         dynamic_paths = custom_read_dataset(path_forcing, param_forcing, config)
         dataset = NCDataset(dynamic_paths, aggdim = "time", deferopen = false)
