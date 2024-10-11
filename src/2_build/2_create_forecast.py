@@ -298,8 +298,13 @@ class Run:
 
     def set_toml_forcing(self, forcing_dict=_FORCING_FILES):
         self.var_precip, self.path_precip = forcing_dict[self.forcing]["precip"]
+        self.path_precip = convert_path(self.path_precip)
+        
         self.var_pet, self.path_pet = forcing_dict[self.forcing]["pet"]
+        self.path_pet = convert_path(self.path_pet)
+
         self.var_temp, self.path_temp = forcing_dict[self.forcing]["temp"]
+        self.path_temp = convert_path(self.path_temp)
         
     def set_state_input(self, state: datetime.datetime) -> None:
         """
