@@ -58,13 +58,13 @@ _DATE_FORMAT_LONG = r"%Y-%m-%dT%H:%M:%S"
 _FORCING_FILES = {
     "era5_daily": {
         'precip': ("tp", "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_tp_*_daily.nc"),
-        'temp': ("t2m", "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_t2m_*_daily.nc"),
+        'temp': ("t2m", "p:/wflow_global/hydromt/meteo/era5_daily/t2m/era5_t2m_*_daily.nc"),
         'pet': ("pet", "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
         'temp_in_celsius': False,
     },
     "chirps":  {
         'precip': ("precipitation", "p:/wflow_global/hydromt/meteo/chirps_africa_caily_v2.0/CHIRPS_rainfall*.nc"),
-        'temp': ("t2m", "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_t2m_*_daily.nc"),
+        'temp': ("t2m", "p:/wflow_global/hydromt/meteo/era5_daily/t2m/era5_t2m_*_daily.nc"),
         'pet': ("pet", "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
         'temp_in_celsius': False,
     },
