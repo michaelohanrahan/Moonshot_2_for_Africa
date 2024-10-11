@@ -620,9 +620,6 @@ class Forecast(Run):
             self.logger.info("Found no matching states, need to create a new state")
             state = self.state.get_new_state()
 
-        self.state_file_name = f"{self.forcing}_{self.state_input.strftime(_DATE_FORMAT_FNAME)}.nc"
-
-
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.DEBUG,
