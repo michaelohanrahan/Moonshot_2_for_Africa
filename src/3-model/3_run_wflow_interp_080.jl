@@ -930,5 +930,4 @@ function reshape_array(data::Array{Float64, 2}, sorted_indices::Vector{Int})
     return data[:, sorted_indices]
 end
 
-run("wflow_sbm_era5_validate.toml")
-# run(ARGS[1])
+run(ARGS[1])
