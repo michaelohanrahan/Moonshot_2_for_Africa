@@ -50,13 +50,16 @@ def prepare(base_dir):
     print("\nFORECASTS:")
     for forecast in FORECASTS:
         print(forecast)
+    
+    CONFIG_DICT = {fc: cfg for fc,cfg in zip(FORECASTS, CONFIGS)}
+    print("\nCONFIG_DICT:")
+    for fc, cfg in CONFIG_DICT.items():
+        print(f"{fc}: {cfg}")
 
     CLUSTERS = {fc: get_clusters_and_state_files(cfg)[1:][0] for fc,cfg in zip(FORECASTS, CONFIGS)}
     print("\nCLUSTERS:")
     for fc, clusters in CLUSTERS.items():
         print(f"{fc}: {clusters}")
-
-    
     
     STATE_FILES = {fc: get_clusters_and_state_files(cfg)[2] for fc,cfg in zip(FORECASTS, CONFIGS)}
     print("\nSTATE_FILES:")
@@ -76,12 +79,12 @@ def prepare(base_dir):
     with open(Path(output_dir, 'FC_DICT.json').as_posix(), 'w') as f:
         json.dump(FC_DICT, f, indent=4)
 
-    return CONFIGS, FORECASTS, CLUSTERS, STATE_FILES, FC_DICT
+    return CONFIGS, CONFIG_DICT, FORECASTS, CLUSTERS, STATE_FILES, FC_DICT
 #CONFIGS: list of config files
 #FORECASTS: list of forecast names
 #CLUSTERS: dictionary with forecast names as keys and cluster IDs as values
 #FC_DICT: dictionary with forecast names as keys and model locations as values
-CONFIGS, FORECASTS, CLUSTERS, STATE_FILES, FC_DICT = prepare(base_dir)
+CONFIGS, CONFIG_DICT, FORECASTS, CLUSTERS, STATE_FILES, FC_DICT = prepare(base_dir)
 
 
 """
@@ -100,24 +103,28 @@ def get_output_files(filename, FORECASTS, CLUSTERS):
 
 rule all:
     input: 
-        get_output_files("warmup.toml", FORECASTS, CLUSTERS),
-        get_output_files("forecast.toml", FORECASTS, CLUSTERS),
-        get_output_files("output.nc", FORECASTS, CLUSTERS),
+        wtom = get_output_files("warmup.toml", FORECASTS, CLUSTERS),
+        ftom = get_output_files("forecast.toml", FORECASTS, CLUSTERS),
+        alls = get_output_files("output.nc", FORECASTS, CLUSTERS),
          
 """ 
 ::: PREPARE FORECAST :::
 Running Wflow for each cluster, for each forecast. 
 """
 
-rule prepare_forecast_instate_config:
+rule prepare_forecast:
+    input:
+        config = lambda wildcards: CONFIG_DICT[wildcards.forecast]
     output:
-        wtom = str(output_dir)+"/{forecast}/{cluster}/warmup.toml",
-        ftom = str(output_dir)+"/{forecast}/{cluster}/forecast.toml",
+        wcard = str(output_dir)+"/{forecast}/{cluster}/warmup.toml",
+        fcard = str(output_dir)+"/{forecast}/{cluster}/forecast.toml",
+        # wtom = rules.all.input.wtom,
+        # ftom = rules.all.input.ftom
     params:
-        config = lambda wildcards: FC_DICT[wildcards.forecast]
+        script = Path("src/2_build/2_create_forecast.py").as_posix()
     localrule: True
-    script:
-        "2_build/2_create_forecast.py {params.config}"
+    shell:
+        """pixi run python {params.script} --config {input.config}"""
 
 """
 ::: RUN INSTATE :::
@@ -127,12 +134,14 @@ Running the instate run for each forecast, cluster.
 
 rule run_forecast:
     input:
-        toml = str(output_dir)+"/{forecast}/{cluster}/forecast.toml"
+        wtom = str(output_dir)+"/{forecast}/{cluster}/warmup.toml",
+        ftom = str(output_dir)+"/{forecast}/{cluster}/forecast.toml"
     params: 
-        # project=Path(base_dir, "bin").as_posix()
+        project=Path(base_dir, "bin").as_posix(),
         warmup = str(output_dir)+"/{forecast}/{cluster}/wflow_sbm_warmup.toml"
     output:
         file = str(output_dir)+"/{forecast}/{cluster}/output.nc"
+    localrule: True
     run:
     
         if os.path.isfile(params.warmup):

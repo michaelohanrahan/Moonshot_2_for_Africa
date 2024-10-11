@@ -20,22 +20,35 @@ import yaml
 import glob
 import argparse
 import traceback
-
+from helper import syscheck
 import geopandas as gpd
 from hydromt_wflow import WflowModel
 from hydromt.config import configread
 
+DRIVE = syscheck()
+
+print(f"{'*'*10}\nDRIVE: {DRIVE}\n{'*'*10}")
+
 logger = logging.getLogger("MS2")
 
-_ROOT = os.path.normpath("p:/moonshot2-casestudy/Wflow/africa/data/")
+# Set the logging level for the root logger
+logging.getLogger().setLevel(logging.INFO)
+
+# Optionally, set logging levels for specific loggers
+logging.getLogger('fiona').setLevel(logging.WARNING)
+logging.getLogger('geopandas').setLevel(logging.WARNING)
+logging.getLogger('rasterio').setLevel(logging.WARNING)
+logging.getLogger('gdal').setLevel(logging.WARNING)
+
+_ROOT = os.path.normpath(f"{DRIVE}/moonshot2-casestudy/Wflow/africa/data/")
 _TOML_STATE = os.path.normpath(
-    "p:/moonshot2-casestudy/Wflow/africa/config/3_warmup_wflow_sbm.toml"
+    f"{DRIVE}/moonshot2-casestudy/Wflow/africa/config/3_warmup_wflow_sbm.toml"
 )
 _TOML_FORECAST = os.path.normpath(
-    "p:/moonshot2-casestudy/Wflow/africa/config/3_forecast_wflow_sbm.toml"
+    f"{DRIVE}/moonshot2-casestudy/Wflow/africa/config/3_forecast_wflow_sbm.toml"
 )
 _CLUSTERS = os.path.normpath(
-    "p:/moonshot2-casestudy/Wflow/africa/data/2-interim/clustered_basins.geojson"
+    f"{DRIVE}/moonshot2-casestudy/Wflow/africa/data/2-interim/clustered_basins.geojson"
 )
 
 _DATE_FORMAT_FNAME = r"%Y%m%d"
@@ -114,13 +127,31 @@ class Config:
             config_dict = yaml.safe_load(file)
 
         self.name = config_dict["name"]
-        self.points_of_interest = config_dict["points_of_interest"]
+        self.points_of_interest = self.convert_path(config_dict["points_of_interest"])
+        # self.logger.debug(f"Points of interest path: {self.points_of_interest}")
         self.start_date = config_dict["start_date"]
         self.timestepsecs = config_dict["timestepsecs"]
         self.duration_in_timesteps = config_dict["duration_in_timesteps"]
         self.variables = config_dict["variables"]  # not used yet
         self.forcing = config_dict["forcing"]
         self.warmup_forcing = config_dict["warmup_forcing"]
+
+    def convert_path(self, path: str) -> str:
+        """Convert Windows path to Linux path and replace 'p:' or {} with DRIVE."""
+        # self.logger.debug(f"Original path: {path}")
+        # self.logger.debug(f"DRIVE value: {DRIVE}")
+        
+        if os.name != 'nt':  # If not Windows
+            path = path.replace('\\', '/')
+            if path.startswith('p:/'):
+                path = path.replace('p:/', f'{DRIVE}/', 1)
+            elif 'p:/' in path:
+                path = path.replace('p:/', f'{DRIVE}/')
+        
+        # Replace {} with DRIVE if present
+        path = path.replace('{}', DRIVE)
+        
+        return path
 
 
 class Jobs:
@@ -159,8 +190,8 @@ class Jobs:
                     f"Invalid forcing type {self.forcing}, choose from {_FORCING_FILES.keys()}"
                 )
 
-        self.points = gpd.read_file(self.config.points_of_interest)
-        self.clusters = gpd.read_file(_CLUSTERS)
+        self.points = self.read_points_of_interest()
+        self.clusters = gpd.read_file(self.config.convert_path(_CLUSTERS))
 
         self.cluster_ids = []
         self.runtimes = {}
@@ -203,6 +234,15 @@ class Jobs:
         )
         self.logger.info(f"Found one or more clusters: {cluster_ids}")
         return cluster_ids
+
+    def read_points_of_interest(self):
+        try:
+            return gpd.read_file(self.config.points_of_interest)
+        except Exception as e:
+            self.logger.error(f"Error reading points of interest: {e}")
+            self.logger.info(f"Attempted to read file: {self.config.points_of_interest}")
+            self.logger.info(f"Current working directory: {os.getcwd()}")
+            raise
 
 
 class Run:
@@ -374,7 +414,7 @@ class State(Run):
 
         self.path_log = f"log_{self.jobs.name}_{self.cluster_id}_warmup.log"
         self.reinit = False
-        self.path_forcing = _FORCING_FILES[self.jobs.forcing]
+        self.path_forcing = _FORCING_FILES[self.forcing]
         self.path_output = f"{self.jobs.name}_{self.cluster_id}_output.nc"
         self.toml = "warmup.toml"
 

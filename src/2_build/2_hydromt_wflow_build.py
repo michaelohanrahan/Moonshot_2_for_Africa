@@ -25,7 +25,6 @@ WFLOW_ROOT = os.path.join(ROOT, "data/3-input/wflow_build")
 
 # snakemake input
 # CLUSTERED_GEOMETRIES = snakemake.params.clustered_geometries
-
 def log_basin_id(basin_id: int, log_file: str):
     with open(log_file, 'a') as file:
         log_entry = f"Failed basin id {basin_id}: {datetime.datetime.now()}\n"
@@ -69,6 +68,7 @@ def create_model(root: str, geom: gpd.GeoDataFrame, uparea: float = 1, res: floa
 
 if __name__ == "__main__":
     log_failed = os.path.join(WFLOW_ROOT, "failed_builds.log")
+
     with open(log_failed, 'w') as file:
         file.write('')
 
