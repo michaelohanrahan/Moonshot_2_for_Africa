@@ -65,6 +65,26 @@ _MAX_RUNTIME = 10  # upper limit for runtime, unit: ms per timestep per km²
 # TODO: dict per cluster type / number of cores
 
 
+def convert_path(path: str) -> str:
+    """
+    Convert Windows path to Linux path and replace 'p:' or {} with DRIVE.
+    """
+    
+    # self.logger.debug(f"Original path: {path}")
+    # self.logger.debug(f"DRIVE value: {DRIVE}")
+    
+    if os.name != 'nt':  # If not Windows
+        path = path.replace('\\', '/')
+        if path.startswith('p:/'):
+            path = path.replace('p:/', f'{DRIVE}/', 1)
+        elif 'p:/' in path:
+            path = path.replace('p:/', f'{DRIVE}/')
+    
+    # Replace {} with DRIVE if present
+    path = path.replace('{}', DRIVE)
+    
+    return path
+
 def time_in_dhms(seconds: float) -> str:
     """
     Converts a given time in seconds to a string representation in
@@ -135,24 +155,6 @@ class Config:
         self.variables = config_dict["variables"]  # not used yet
         self.forcing = config_dict["forcing"]
         self.warmup_forcing = config_dict["warmup_forcing"]
-
-    def convert_path(self, path: str) -> str:
-        """Convert Windows path to Linux path and replace 'p:' or {} with DRIVE."""
-        # self.logger.debug(f"Original path: {path}")
-        # self.logger.debug(f"DRIVE value: {DRIVE}")
-        
-        if os.name != 'nt':  # If not Windows
-            path = path.replace('\\', '/')
-            if path.startswith('p:/'):
-                path = path.replace('p:/', f'{DRIVE}/', 1)
-            elif 'p:/' in path:
-                path = path.replace('p:/', f'{DRIVE}/')
-        
-        # Replace {} with DRIVE if present
-        path = path.replace('{}', DRIVE)
-        
-        return path
-
 
 class Jobs:
     """
