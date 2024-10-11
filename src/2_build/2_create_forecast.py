@@ -56,14 +56,44 @@ _DATE_FORMAT_SHORT = r"%Y-%m-%d"
 _DATE_FORMAT_LONG = r"%Y-%m-%dT%H:%M:%S"
 
 _FORCING_FILES = {
-    "era5": "...",
-    "era5_hourly": "...",
-    "chirps": "...",
+    "era5_daily": {
+        'precip': ("tp", "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_tp_*_daily.nc"),
+        'temp': ("t2m", "p:/wflow_global/hydromt/meteo/era5_daily/t2m/era5_t2m_*_daily.nc"),
+        'pet': ("pet", "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
+        'temp_in_celsius': False,
+    },
+    "chirps":  {
+        'precip': ("precipitation", "p:/wflow_global/hydromt/meteo/chirps_africa_caily_v2.0/CHIRPS_rainfall*.nc"),
+        'temp': ("t2m", "p:/wflow_global/hydromt/meteo/era5_daily/t2m/era5_t2m_*_daily.nc"),
+        'pet': ("pet", "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
+        'temp_in_celsius': False,
+    },
+    # "era5_hourly": "...", TODO support hourly PET
 }
 
 _MAX_RUNTIME = 10  # upper limit for runtime, unit: ms per timestep per km²
 # TODO: dict per cluster type / number of cores
 
+
+def convert_path(path: str) -> str:
+    """
+    Convert Windows path to Linux path and replace 'p:' or {} with DRIVE.
+    """
+    
+    # self.logger.debug(f"Original path: {path}")
+    # self.logger.debug(f"DRIVE value: {DRIVE}")
+    
+    if os.name != 'nt':  # If not Windows
+        path = path.replace('\\', '/')
+        if path.startswith('p:/'):
+            path = path.replace('p:/', f'{DRIVE}/', 1)
+        elif 'p:/' in path:
+            path = path.replace('p:/', f'{DRIVE}/')
+    
+    # Replace {} with DRIVE if present
+    path = path.replace('{}', DRIVE)
+    
+    return path
 
 def time_in_dhms(seconds: float) -> str:
     """
@@ -127,7 +157,7 @@ class Config:
             config_dict = yaml.safe_load(file)
 
         self.name = config_dict["name"]
-        self.points_of_interest = self.convert_path(config_dict["points_of_interest"])
+        self.points_of_interest = convert_path(config_dict["points_of_interest"])
         # self.logger.debug(f"Points of interest path: {self.points_of_interest}")
         self.start_date = config_dict["start_date"]
         self.timestepsecs = config_dict["timestepsecs"]
@@ -135,24 +165,6 @@ class Config:
         self.variables = config_dict["variables"]  # not used yet
         self.forcing = config_dict["forcing"]
         self.warmup_forcing = config_dict["warmup_forcing"]
-
-    def convert_path(self, path: str) -> str:
-        """Convert Windows path to Linux path and replace 'p:' or {} with DRIVE."""
-        # self.logger.debug(f"Original path: {path}")
-        # self.logger.debug(f"DRIVE value: {DRIVE}")
-        
-        if os.name != 'nt':  # If not Windows
-            path = path.replace('\\', '/')
-            if path.startswith('p:/'):
-                path = path.replace('p:/', f'{DRIVE}/', 1)
-            elif 'p:/' in path:
-                path = path.replace('p:/', f'{DRIVE}/')
-        
-        # Replace {} with DRIVE if present
-        path = path.replace('{}', DRIVE)
-        
-        return path
-
 
 class Jobs:
     """
@@ -191,14 +203,17 @@ class Jobs:
                 )
 
         self.points = self.read_points_of_interest()
-        self.clusters = gpd.read_file(self.config.convert_path(_CLUSTERS))
+        self.clusters = gpd.read_file(convert_path(_CLUSTERS))
 
         self.cluster_ids = []
         self.runtimes = {}
         self.forecasts = {}
 
-    def get_state_file_name(self, forecast, cluster):
-        return self.forecasts[cluster].state_file_name
+    def get_state_file_name(self, forecast: str, cluster: str) -> str:
+        forecast_obj = self.forecasts.get(cluster)
+        if forecast_obj is None:
+            raise ValueError(f"No forecast object found for cluster {cluster}")
+        return forecast_obj.get_state_file_name(forecast, cluster)
 
     
     def prepare(self):
@@ -265,14 +280,15 @@ class Run:
                 The cluster id for this specific Wflow model run.
         """
         self.logger = jobs.logger
-        self.jobs = jobs
         self.cluster_id = cluster_id
+        self.jobs = jobs
 
         self.dir_input = os.path.join(_ROOT, "3-input", "wflow_build", str(self.cluster_id))
         self.dir_output = os.path.join(
             _ROOT, "4-output", "wflow_forecast", self.jobs.name, str(self.cluster_id)
         )
 
+        self.forcing = None
         self.toml = None
         self.duration = None
         self.max_runtime = None
@@ -283,10 +299,40 @@ class Run:
         self.timestepsecs = None
         self.path_log = None
         self.reinit = None
-        self.path_forcing = None
         self.path_output = None
         self.state_input = None
         self.state_output = None
+
+    def set_toml_forcing(self, forcing_dict=_FORCING_FILES):
+        self.var_precip, self.path_precip = forcing_dict[self.forcing]["precip"]
+        self.var_pet, self.path_pet = forcing_dict[self.forcing]["pet"]
+        self.var_temp, self.path_temp = forcing_dict[self.forcing]["temp"]
+        
+    def set_state_input(self, state: datetime.datetime) -> None:
+        """
+        Set the input path to the state given a state date
+
+        Parameters
+        ----------
+        state : datetime.dateime
+            The date of the input state
+        """
+        state_dir = os.path.join(_ROOT, "3-input", "wflow_state", str(self.cluster_id))
+        self.state_input = os.path.join(state_dir, f"{self.forcing}_{state.strftime(_DATE_FORMAT_FNAME)}.nc")
+        self.logger.debug(f"set state_input to {self.state_input}")
+
+    def set_state_output(self, state: datetime.datetime) -> None:
+        """
+        Set the output path to the state given a state date
+
+        Parameters
+        ----------
+        state : datetime.dateime
+            The date of the input state
+        """
+        state_dir = os.path.join(_ROOT, "3-input", "wflow_state", str(self.cluster_id))
+        self.state_output = os.path.join(state_dir, f"{self.forcing}_{state.strftime(_DATE_FORMAT_FNAME)}.nc")
+        self.logger.debug(f"set state_output to {self.state_output}")
 
     def create_toml(
         self, template: str, hydromt_config_fn: str = None, limit_logging: bool = True
@@ -327,8 +373,15 @@ class Run:
         w.set_config("dir_output", self.dir_output)
         w.set_config("path_log", self.path_log)
 
+        self.set_toml_forcing()
+        w.set_config("input", "path_precip", self.path_precip)
+        w.set_config("input", "vertical", "precipitation", self.var_precip)
+        w.set_config("input", "path_pet", self.path_pet)
+        w.set_config("input", "vertical", "potential_evaporation", self.var_pet)
+        w.set_config("input", "path_temp", self.path_temp)
+        w.set_config("input", "vertical", "temperature", self.var_temp)
+
         w.set_config("model", "reinit", self.reinit)
-        w.set_config("input", "path_forcing", self.path_forcing)
         w.set_config("state", "path_input", self.state_input)
         w.set_config("state", "path_output", self.state_output)
         w.set_config("output", "path", self.path_output)
@@ -338,7 +391,7 @@ class Run:
             opt = configread(config_fn=hydromt_config_fn)
             w.update(write=False, opt=opt)
 
-        self.logger.info(f"Writing Wflow config (warmup) file {self.toml} to {self.dir_output}")
+        self.logger.info(f"Writing Wflow config file {self.toml} to {self.dir_output}")
         w.write_config(self.toml, self.dir_output)
         w = None  # close model
 
@@ -415,7 +468,6 @@ class State(Run):
         self.path_log = f"log_{self.jobs.name}_{self.cluster_id}_warmup.log"
         self.reinit = False
         self.path_forcing = _FORCING_FILES[self.forcing]
-        self.path_output = f"warmup_output.nc"
         self.toml = "warmup.toml"
 
     def get_all_states(self) -> list[datetime.datetime]:
@@ -452,8 +504,11 @@ class State(Run):
         warmup_days : int, optional
             The tolerance to search for an existing state as starting point.
         """
+        self.create_state = True
+        self.endtime = self.jobs.tstart
         available_states = self.get_all_states()
-        index = bisect.bisect_right(available_states, self.jobs.tstart)
+
+        index = bisect.bisect_right(available_states, self.endtime)
         if index:
             state = available_states[index - 1]
             self.logger.info(
@@ -467,8 +522,10 @@ class State(Run):
                 f"Preparing new warmup run,"
                 f"starting with cold state {state} (warmup_days = {warmup_days})"
             )
-        self.state_date = state
-        return state  # Return the datetime object
+        self.starttime = state
+        self.set_state_input(state)
+        self.set_state_output(self.endtime)
+        return state
 
 
 class Forecast(Run):
@@ -482,15 +539,18 @@ class Forecast(Run):
 
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
         super().__init__(jobs, cluster_id)
-        self.forcing = jobs.forcing  # Add this line
         self.state = State(jobs, cluster_id)
-        self.starttime = self.jobs.tstart
-        self.endtime = self.jobs.tend
-        self.timestepsecs = self.jobs.timestepsecs
-        self.duration = self.jobs.duration
-        self.path_log = f"log_{self.jobs.name}_{self.cluster_id}_forecast.log"
+        self.state_file_name = None  # Initialize to None
+        self.state_input = None  # Initialize to None
+        
+        self.forcing = jobs.forcing
+        self.starttime = jobs.tstart
+        self.endtime = jobs.tend
+        self.timestepsecs = jobs.timestepsecs
+        self.duration = jobs.duration
+        self.path_log = f"log_{jobs.name}_{self.cluster_id}_forecast.log"
         self.reinit = False
-        self.path_forcing = _FORCING_FILES[self.forcing]  # Use self.forcing instead of self.jobs.forcing
+        self.path_forcing = _FORCING_FILES[self.forcing]
         self.path_output = "output.nc"
         self.toml = "forecast.toml"
 
@@ -517,6 +577,7 @@ class Forecast(Run):
             self.state.create_toml(template=_TOML_STATE)
             self.jobs.runtimes[f"{self.cluster_id}_state"] = state_runtime
 
+
     def find_recent_state(self, recent_days: int = 14) -> None:
         """
         Finds the most recent state for a Forecast.
@@ -537,36 +598,42 @@ class Forecast(Run):
             f"recent_days: {recent_days})"
         )
         available_states = self.state.get_all_states()
-        self.logger.info(
-            f"Found {len(available_states)} existing states for this combination"
-            " of cluster and forcing"
-        )
-        self.state_input = None  # Initialize to None
-        for state in available_states:
-            if state == self.starttime:
-                self.logger.info(
-                    f"Found state with start date {state}, use as warm state"
-                )
-                self.state_input = state
-                break  # Exit loop once we find a matching state
+        if len(available_states) > 0:
+            self.logger.info(
+                f"Found {len(available_states)} existing states for this combination"
+                " of cluster and forcing"
+            )
 
-            elif state < self.starttime <= state + datetime.timedelta(days=recent_days):
-                self.logger.info(
-                    f"Found state with start date {state}, use as warm state and new start time"
-                )
-                self.state_input = state
-                self.starttime = state
-                self.duration = int((self.endtime - self.starttime) / self.timestepsecs)
-                break  # Exit loop once we find a matching state
+            for state in available_states:
+                if state == self.starttime:
+                    self.logger.info(
+                        f"Found state with start date {state}, use as warm state"
+                    )
+                    self.state_input = state
+                    break
 
-        if self.state_input is None:
+                elif state < self.starttime <= state + datetime.timedelta(days=recent_days):
+                    self.logger.info(
+                        f"Found state with start date {state}, use as warm state and new start time"
+                    )
+                    self.state_input = state
+                    self.starttime = state
+                    self.duration = int((self.endtime - self.starttime) / self.timestepsecs)
+                    break
+        else:
             self.logger.info("Found no matching states, need to create a new state")
-            self.state_input = self.state.get_new_state()  # Assume this returns a datetime
-
+            state = self.state.get_new_state()
+        
         if self.state_input is None:
-            raise ValueError("Failed to set state_input to a valid datetime")
+            self.logger.info("Found no matching states, using starttime as state input")
+            self.state_input = self.starttime
 
         self.state_file_name = f"{self.forcing}_{self.state_input.strftime(_DATE_FORMAT_FNAME)}.nc"
+
+    def get_state_file_name(self, forecast: str, cluster: str) -> str:
+        if self.state_file_name is None:
+            self.find_recent_state()
+        return self.state_file_name
 
 
 if __name__ == "__main__":
@@ -580,9 +647,6 @@ if __name__ == "__main__":
         args.add_argument("--config", type=str, required=True)
         args.add_argument("--os", type=str, required=False, choices=["windows", "linux"])
         args = args.parse_args()
-        
-        if args.os:
-            DRIVE = "p:" if args.os == "windows" else "p/"
         
         runs = Jobs(
             args.config
