@@ -57,15 +57,15 @@ _DATE_FORMAT_LONG = r"%Y-%m-%dT%H:%M:%S"
 
 _FORCING_FILES = {
     "era5_daily": {
-        'precip': ("tp", "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_tp_*_daily.nc"),
-        'temp': ("t2m", "p:/wflow_global/hydromt/meteo/era5_daily/t2m/era5_t2m_*_daily.nc"),
-        'pet': ("pet", "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
+        'precip': ("tp", f"{DRIVE}/wflow_global/hydromt/meteo/era5_daily/tp/era5_tp_*_daily.nc"),
+        'temp': ("t2m", f"{DRIVE}/wflow_global/hydromt/meteo/era5_daily/t2m/era5_t2m_*_daily.nc"),
+        'pet': ("pet", f"{DRIVE}/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
         'temp_in_celsius': False,
     },
     "chirps":  {
-        'precip': ("precipitation", "p:/wflow_global/hydromt/meteo/chirps_africa_caily_v2.0/CHIRPS_rainfall*.nc"),
-        'temp': ("t2m", "p:/wflow_global/hydromt/meteo/era5_daily/t2m/era5_t2m_*_daily.nc"),
-        'pet': ("pet", "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
+        'precip': ("precipitation", f"{DRIVE}/wflow_global/hydromt/meteo/chirps_africa_caily_v2.0/CHIRPS_rainfall*.nc"),
+        'temp': ("t2m", f"{DRIVE}/wflow_global/hydromt/meteo/era5_daily/t2m/era5_t2m_*_daily.nc"),
+        'pet': ("pet", f"{DRIVE}/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
         'temp_in_celsius': False,
     },
     # "era5_hourly": "...", TODO support hourly PET
@@ -504,6 +504,7 @@ class State(Run):
         index = bisect.bisect_right(available_states, self.endtime)
         if index:
             state = available_states[index - 1]
+            self.set_state_input(state)
             self.logger.info(
                 f"Preparing new warmup run, starting at closest existing state {state}"
             )
@@ -516,7 +517,6 @@ class State(Run):
                 f"starting with cold state {state} (warmup_days = {warmup_days})"
             )
         self.starttime = state
-        self.set_state_input(state)
         self.set_state_output(self.endtime)
         return state
 
