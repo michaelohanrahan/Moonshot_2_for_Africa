@@ -307,6 +307,32 @@ class Run:
         self.var_precip, self.path_precip = forcing_dict[self.forcing]["precip"]
         self.var_pet, self.path_pet = forcing_dict[self.forcing]["pet"]
         self.var_temp, self.path_temp = forcing_dict[self.forcing]["temp"]
+        
+    def set_state_input(self, state: datetime.datetime) -> None:
+        """
+        Set the input path to the state given a state date
+
+        Parameters
+        ----------
+        state : datetime.dateime
+            The date of the input state
+        """
+        state_dir = os.path.join(_ROOT, "3-input", "wflow_state", str(self.cluster_id))
+        self.state_input = os.path.join(state_dir, f"{self.forcing}_{state.strftime(_DATE_FORMAT_FNAME)}.nc")
+        self.logger.debug(f"set state_input to {self.state_input}")
+
+    def set_state_output(self, state: datetime.datetime) -> None:
+        """
+        Set the output path to the state given a state date
+
+        Parameters
+        ----------
+        state : datetime.dateime
+            The date of the input state
+        """
+        state_dir = os.path.join(_ROOT, "3-input", "wflow_state", str(self.cluster_id))
+        self.state_output = os.path.join(state_dir, f"{self.forcing}_{state.strftime(_DATE_FORMAT_FNAME)}.nc")
+        self.logger.debug(f"set state_output to {self.state_output}")
 
     def create_toml(
         self, template: str, hydromt_config_fn: str = None, limit_logging: bool = True
@@ -497,6 +523,8 @@ class State(Run):
                 f"starting with cold state {state} (warmup_days = {warmup_days})"
             )
         self.starttime = state
+        self.set_state_input(state)
+        self.set_state_output(self.endtime)
         return state
 
 
@@ -548,6 +576,7 @@ class Forecast(Run):
             )
             self.state.create_toml(template=_TOML_STATE)
             self.jobs.runtimes[f"{self.cluster_id}_state"] = state_runtime
+
 
     def find_recent_state(self, recent_days: int = 14) -> None:
         """
