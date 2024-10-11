@@ -1,0 +1,15 @@
+name: "workshop_idai_chirps"
+start_date: "2019-03-12"
+timestepsecs: 86400  
+duration_in_timesteps: 240
+forcing: "chirps"
+warmup_forcing: "chirps"
+points_of_interest: "{}/moonshot2-casestudy/SFINCS/models/source_points_sfincs.geojson"
+variables: ["discharge"]
+
+# below is currently hard-coded
+#warmup_days: 700
+#recent_days: 14
+#write_netcdf = False
+#write_csv = True
+#write_reservoirs = False
