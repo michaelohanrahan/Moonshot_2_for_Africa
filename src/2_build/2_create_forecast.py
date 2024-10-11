@@ -57,15 +57,15 @@ _DATE_FORMAT_LONG = r"%Y-%m-%dT%H:%M:%S"
 
 _FORCING_FILES = {
     "era5_daily": {
-        'precip': "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_tp_*_daily.nc",
-        'temp': "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_t2m_*_daily.nc",
-        'pet': "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc",
+        'precip': ("tp", "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_tp_*_daily.nc"),
+        'temp': ("t2m", "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_t2m_*_daily.nc"),
+        'pet': ("pet", "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
         'temp_in_celsius': False,
     },
     "chirps":  {
-        'precip': "p:/wflow_global/hydromt/meteo/chirps_africa_caily_v2.0/CHIRPS_rainfall*.nc",
-        'temp': "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_t2m_*_daily.nc",
-        'pet': "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc",
+        'precip': ("precipitation", "p:/wflow_global/hydromt/meteo/chirps_africa_caily_v2.0/CHIRPS_rainfall*.nc"),
+        'temp': ("t2m", "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_t2m_*_daily.nc"),
+        'pet': ("pet", "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
         'temp_in_celsius': False,
     },
     # "era5_hourly": "...", TODO support hourly PET
@@ -157,7 +157,7 @@ class Config:
             config_dict = yaml.safe_load(file)
 
         self.name = config_dict["name"]
-        self.points_of_interest = self.convert_path(config_dict["points_of_interest"])
+        self.points_of_interest = convert_path(config_dict["points_of_interest"])
         # self.logger.debug(f"Points of interest path: {self.points_of_interest}")
         self.start_date = config_dict["start_date"]
         self.timestepsecs = config_dict["timestepsecs"]
@@ -277,14 +277,15 @@ class Run:
                 The cluster id for this specific Wflow model run.
         """
         self.logger = jobs.logger
-        self.jobs = jobs
         self.cluster_id = cluster_id
+        self.jobs = jobs
 
         self.dir_input = os.path.join(_ROOT, "3-input", "wflow_build", str(self.cluster_id))
         self.dir_output = os.path.join(
             _ROOT, "4-output", "wflow_forecast", self.jobs.name, str(self.cluster_id)
         )
 
+        self.forcing = None
         self.toml = None
         self.duration = None
         self.max_runtime = None
@@ -295,10 +296,14 @@ class Run:
         self.timestepsecs = None
         self.path_log = None
         self.reinit = None
-        self.path_forcing = None
         self.path_output = None
         self.state_input = None
         self.state_output = None
+
+    def set_toml_forcing(self, forcing_dict=_FORCING_FILES):
+        self.var_precip, self.path_precip = forcing_dict[self.forcing]["precip"]
+        self.var_pet, self.path_pet = forcing_dict[self.forcing]["pet"]
+        self.var_temp, self.path_temp = forcing_dict[self.forcing]["temp"]
 
     def create_toml(
         self, template: str, hydromt_config_fn: str = None, limit_logging: bool = True
@@ -339,8 +344,15 @@ class Run:
         w.set_config("dir_output", self.dir_output)
         w.set_config("path_log", self.path_log)
 
+        self.set_toml_forcing()
+        w.set_config("input", "path_precip", self.path_precip)
+        w.set_config("input", "vertical", "precipitation", self.var_precip)
+        w.set_config("input", "path_pet", self.path_pet)
+        w.set_config("input", "vertical", "potential_evaporation", self.var_pet)
+        w.set_config("input", "path_temp", self.path_temp)
+        w.set_config("input", "vertical", "temperature", self.var_temp)
+
         w.set_config("model", "reinit", self.reinit)
-        w.set_config("input", "path_forcing", self.path_forcing)
         w.set_config("state", "path_input", self.state_input)
         w.set_config("state", "path_output", self.state_output)
         w.set_config("output", "path", self.path_output)
@@ -464,8 +476,10 @@ class State(Run):
             The tolerance to search for an existing state as starting point.
         """
         self.create_state = True
+        self.endtime = self.jobs.tstart
         available_states = self.get_all_states()
-        index = bisect.bisect_right(available_states, self.jobs.tstart)
+
+        index = bisect.bisect_right(available_states, self.endtime)
         if index:
             state = available_states[index - 1]
             self.logger.info(
@@ -494,13 +508,14 @@ class Forecast(Run):
 
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
         super().__init__(jobs, cluster_id)
-        self.forcing = jobs.forcing
         self.state = State(jobs, cluster_id)
-        self.starttime = self.jobs.tstart
-        self.endtime = self.jobs.tend
-        self.timestepsecs = self.jobs.timestepsecs
-        self.duration = self.jobs.duration
-        self.path_log = f"log_{self.jobs.name}_{self.cluster_id}_forecast.log"
+        
+        self.forcing = jobs.forcing
+        self.starttime = jobs.tstart
+        self.endtime = jobs.tend
+        self.timestepsecs = jobs.timestepsecs
+        self.duration = jobs.duration
+        self.path_log = f"log_{jobs.name}_{self.cluster_id}_forecast.log"
         self.reinit = False
         self.path_forcing = _FORCING_FILES[self.forcing]
         self.path_output = "output.nc"
@@ -549,36 +564,33 @@ class Forecast(Run):
             f"recent_days: {recent_days})"
         )
         available_states = self.state.get_all_states()
-        self.logger.info(
-            f"Found {len(available_states)} existing states for this combination"
-            " vof cluster and forcing"
-        )
+        if len(available_states) > 0:
+            self.logger.info(
+                f"Found {len(available_states)} existing states for this combination"
+                " of cluster and forcing"
+            )
 
-        for state in available_states:
-            if state == self.starttime:
-                self.logger.info(
-                    f"Found state with start date {state}, use as warm state"
-                )
-                self.set_state_input(state)
-                return
+            for state in available_states:
+                if state == self.starttime:
+                    self.logger.info(
+                        f"Found state with start date {state}, use as warm state"
+                    )
+                    break
 
-            elif state < self.starttime <= state + datetime.timedelta(days=recent_days):
-                self.logger.info(
-                    f"Found state with start date {state}, use as warm state and new start time"
-                )
-                self.state_input = state
-                self.starttime = state
-                self.duration = int((self.endtime - self.starttime) / self.timestepsecs)
-                self.set_state_input(state)
-                return
-
-        self.logger.info("Found no matching states, need to create a new state")
-        self.state_input = self.state.get_new_state()
-
-        if self.state_input is None:
-            raise ValueError("Failed to set state_input to a valid datetime")
-
-        self.state_file_name = f"{self.forcing}_{self.state_input.strftime(_DATE_FORMAT_FNAME)}.nc"
+                elif state < self.starttime <= state + datetime.timedelta(days=recent_days):
+                    self.logger.info(
+                        f"Found state with start date {state}, use as warm state and new start time"
+                    )
+                    self.state_input = state
+                    self.starttime = state
+                    self.duration = int((self.endtime - self.starttime) / self.timestepsecs)
+                    break
+        else:
+            self.logger.info("Found no matching states, need to create a new state")
+            state = self.state.get_new_state()
+        
+        self.set_state_input(state)
+ 
         
     def set_state_input(self, state: datetime.datetime) -> None:
         """
@@ -601,12 +613,14 @@ if __name__ == "__main__":
         datefmt=r"%Y-%m-%d %H:%M:%S",
     )
     try:
-        args = argparse.ArgumentParser()
-        args.add_argument("--config", type=str, required=True)
-        args = args.parse_args()
-        runs = Jobs(
-            args.config
-        )
+        runs = Jobs(r"C:\git\Moonshot_2_for_Africa\forecasts\2024-10-16_MS2_workshop\forecast_mozambique_freddy.yml")
+        # args = argparse.ArgumentParser()
+        # args.add_argument("--config", type=str, required=True)
+        # args = args.parse_args()
+        
+        # runs = Jobs(
+        #     args.config
+        # )
         runs.prepare()
     except Exception as e:
         traceback.print_exc()
