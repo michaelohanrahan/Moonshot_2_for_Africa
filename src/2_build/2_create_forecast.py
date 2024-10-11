@@ -29,10 +29,10 @@ logger = logging.getLogger("MS2")
 
 _ROOT = os.path.normpath("p:/moonshot2-casestudy/Wflow/africa/data/")
 _TOML_STATE = os.path.normpath(
-    "p:/moonshot2-casestudy/Wflow/africa/config/03_warmup_wflow_sbm.toml"
+    "p:/moonshot2-casestudy/Wflow/africa/config/3_warmup_wflow_sbm.toml"
 )
 _TOML_FORECAST = os.path.normpath(
-    "p:/moonshot2-casestudy/Wflow/africa/config/03_forecast_wflow_sbm.toml"
+    "p:/moonshot2-casestudy/Wflow/africa/config/3_forecast_wflow_sbm.toml"
 )
 _CLUSTERS = os.path.normpath(
     "p:/moonshot2-casestudy/Wflow/africa/data/2-interim/clustered_basins.geojson"
@@ -277,7 +277,8 @@ class Run:
         else:
             w_logger = self.logger
 
-        w = WflowModel(config_fn=template, logger=w_logger)
+        w = WflowModel(logger=w_logger)
+        w.read_config(template)
 
         w.set_config("starttime", self.starttime.strftime(_DATE_FORMAT_LONG))
         w.set_config("endtime", self.endtime.strftime(_DATE_FORMAT_LONG))
@@ -450,8 +451,7 @@ class Forecast(Run):
         self.reinit = False
         self.path_forcing = _FORCING_FILES[self.jobs.forcing]
         self.path_output = f"{self.jobs.name}_{self.cluster_id}_output.nc"
-        self.toml = f"{self.jobs.name}_{self.cluster_id}_warmup.toml"
-        self.state_file_name = None  # Add this line
+        self.toml = f"{self.jobs.name}_{self.cluster_id}_forecast.toml"
 
     def prepare(self):
         """
@@ -523,7 +523,7 @@ class Forecast(Run):
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s - %(levelname)s - %(message)s",
         datefmt=r"%Y-%m-%d %H:%M:%S",
     )
