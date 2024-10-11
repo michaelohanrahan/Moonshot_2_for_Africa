@@ -20,12 +20,12 @@ import yaml
 import glob
 import argparse
 import traceback
-from helper import syscheck
+# from helper import syscheck
 import geopandas as gpd
 from hydromt_wflow import WflowModel
 from hydromt.config import configread
 
-DRIVE = syscheck()
+DRIVE = "/p/" #syscheck()
 
 print(f"{'*'*10}\nDRIVE: {DRIVE}\n{'*'*10}")
 
