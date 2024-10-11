@@ -97,7 +97,7 @@ Define the output files and get the wildcards later.
 state_dir = "data/3-input/wflow_state/{}/{}" #will be formatted as forcing, date
 
 def get_output_files(filename, FORECASTS, CLUSTERS):
-    return [str(output_dir)+f"/{forecast}/{cluster}/"+filename 
+    return [str(output_dir)+f"/wflow_forecast/{forecast}/{cluster}/{filename}" 
             for forecast in FORECASTS 
             for cluster in CLUSTERS[forecast]]
 
@@ -116,8 +116,8 @@ rule prepare_forecast:
     input:
         config = lambda wildcards: CONFIG_DICT[wildcards.forecast]
     output:
-        wcard = str(output_dir)+"/{forecast}/{cluster}/warmup.toml",
-        fcard = str(output_dir)+"/{forecast}/{cluster}/forecast.toml",
+        wcard = str(output_dir)+"/wflow_forecast/{forecast}/{cluster}/warmup.toml",
+        fcard = str(output_dir)+"/wflow_forecast/{forecast}/{cluster}/forecast.toml",
         # wtom = rules.all.input.wtom,
         # ftom = rules.all.input.ftom
     params:
@@ -134,13 +134,13 @@ Running the instate run for each forecast, cluster.
 
 rule run_forecast:
     input:
-        wtom = str(output_dir)+"/{forecast}/{cluster}/warmup.toml",
-        ftom = str(output_dir)+"/{forecast}/{cluster}/forecast.toml"
+        wtom = str(output_dir)+"/wflow_forecast/{forecast}/{cluster}/warmup.toml",
+        ftom = str(output_dir)+"/wflow_forecast/{forecast}/{cluster}/forecast.toml"
     params: 
         project=Path(base_dir, "bin").as_posix(),
-        warmup = str(output_dir)+"/{forecast}/{cluster}/wflow_sbm_warmup.toml"
+        warmup = str(output_dir)+"/wflow_forecast/{forecast}/{cluster}/warmup.toml"
     output:
-        file = str(output_dir)+"/{forecast}/{cluster}/output.nc"
+        file = str(output_dir)+"/wflow_forecast/{forecast}/{cluster}/output.nc"
     localrule: True
     run:
     
@@ -148,12 +148,12 @@ rule run_forecast:
             shell(
                 """
                 julia --project='{params.project}' run_script.jl {params.warmup}
-                julia --project='{params.project}' run_script.jl {input.toml}
+                julia --project='{params.project}' run_script.jl {input.ftom}
                 """
             )
         else:
             shell(
                 """
-                julia --project='{params.project}' run_script.jl {input.toml}
+                julia --project='{params.project}' run_script.jl {input.ftom}
                 """
             )

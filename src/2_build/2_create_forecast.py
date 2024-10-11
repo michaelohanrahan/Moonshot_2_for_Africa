@@ -338,7 +338,7 @@ class Run:
             opt = configread(config_fn=hydromt_config_fn)
             w.update(write=False, opt=opt)
 
-        self.logger.info(f"Writing Wflow config (warmup) to {self.dir_output}")
+        self.logger.info(f"Writing Wflow config (warmup) file {self.toml} to {self.dir_output}")
         w.write_config(self.toml, self.dir_output)
         w = None  # close model
 
@@ -415,7 +415,7 @@ class State(Run):
         self.path_log = f"log_{self.jobs.name}_{self.cluster_id}_warmup.log"
         self.reinit = False
         self.path_forcing = _FORCING_FILES[self.forcing]
-        self.path_output = f"{self.jobs.name}_{self.cluster_id}_output.nc"
+        self.path_output = f"warmup_output.nc"
         self.toml = "warmup.toml"
 
     def get_all_states(self) -> list[datetime.datetime]:
@@ -491,7 +491,7 @@ class Forecast(Run):
         self.path_log = f"log_{self.jobs.name}_{self.cluster_id}_forecast.log"
         self.reinit = False
         self.path_forcing = _FORCING_FILES[self.forcing]  # Use self.forcing instead of self.jobs.forcing
-        self.path_output = f"output.nc"
+        self.path_output = "output.nc"
         self.toml = "forecast.toml"
 
     def prepare(self):
