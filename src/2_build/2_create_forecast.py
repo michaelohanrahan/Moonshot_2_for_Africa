@@ -209,8 +209,11 @@ class Jobs:
         self.runtimes = {}
         self.forecasts = {}
 
-    def get_state_file_name(self, forecast, cluster):
-        return self.forecasts[cluster].state_file_name
+    def get_state_file_name(self, forecast: str, cluster: str) -> str:
+        forecast_obj = self.forecasts.get(cluster)
+        if forecast_obj is None:
+            raise ValueError(f"No forecast object found for cluster {cluster}")
+        return forecast_obj.get_state_file_name(forecast, cluster)
 
     
     def prepare(self):
@@ -509,6 +512,8 @@ class Forecast(Run):
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
         super().__init__(jobs, cluster_id)
         self.state = State(jobs, cluster_id)
+        self.state_file_name = None  # Initialize to None
+        self.state_input = None  # Initialize to None
         
         self.forcing = jobs.forcing
         self.starttime = jobs.tstart
@@ -575,6 +580,7 @@ class Forecast(Run):
                     self.logger.info(
                         f"Found state with start date {state}, use as warm state"
                     )
+                    self.state_input = state
                     break
 
                 elif state < self.starttime <= state + datetime.timedelta(days=recent_days):
@@ -589,22 +595,17 @@ class Forecast(Run):
             self.logger.info("Found no matching states, need to create a new state")
             state = self.state.get_new_state()
         
-        self.set_state_input(state)
- 
-        
-    def set_state_input(self, state: datetime.datetime) -> None:
-        """
-        Set the input path to the state given a state date
+        if self.state_input is None:
+            self.logger.info("Found no matching states, using starttime as state input")
+            self.state_input = self.starttime
 
-        Parameters
-        ----------
-        state : datetime.dateime
-            The date of the input state
-        """
-        state_dir = os.path.join(_ROOT, "3-input", "wflow_state", str(self.cluster_id))
-        self.state_input = os.path.join(state_dir, f"{self.forcing}_{state.strftime(_DATE_FORMAT_FNAME)}.nc")
-        self.logger.debug(f"set state_input to {self.state_input}")
-        
+        self.state_file_name = f"{self.forcing}_{self.state_input.strftime(_DATE_FORMAT_FNAME)}.nc"
+
+    def get_state_file_name(self, forecast: str, cluster: str) -> str:
+        if self.state_file_name is None:
+            self.find_recent_state()
+        return self.state_file_name
+
 
 if __name__ == "__main__":
     logging.basicConfig(
