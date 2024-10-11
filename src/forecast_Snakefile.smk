@@ -149,14 +149,22 @@ Running the forecast for each forecast, cluster.
 
 rule run_forecast:
     input:
-        instate = rules.touch_instate.input,
-        touched = rules.touch_instate.output
+        # instate = rules.touch_instate.input,
+        # touched = rules.touch_instate.output
+        toml = str(output_dir)+"/{forecast}/{cluster}/wflow_sbm_forecast.toml"
     params: 
-        project=Path(base_dir, "bin").as_posix()
+        # project=Path(base_dir, "bin").as_posix()
+        warmup = str(output_dir)+"/{forecast}/{cluster}/wflow_sbm_warmup.toml"
     output:
         file = str(output_dir)+"/{forecast}/{cluster}/output_scalar.nc"
-    shell:
-        """julia --project='{params.project}' run_script.jl {input}"""
+    run:
+        if os.path.isfile(params.warmup):
+            shell:
+                """julia --project='{params.project}' run_script.jl {params.warmup}"""
+                """julia --project='{params.project}' run_script.jl {input.toml}"""
+        else:
+            shell:
+                """julia --project='{params.project}' run_script.jl {input.toml}"""
 
 # rule run_forecast:
 #     input:

@@ -106,9 +106,6 @@ data/3-input
 data/4-output
 data/5-visualization
 
-# exclude generated forecasts
-forecasts/
-
 # exclude figures
 reports/figures
 
