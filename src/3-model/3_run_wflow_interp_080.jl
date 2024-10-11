@@ -148,7 +148,7 @@ function update_forcing_regrid!(model, correct2sea, correct2dem)
     # 00:00:00 and 01-02-2000 00:00:00.
 
     # load from NetCDF into the model according to the mapping
-    for ((par, ncvar), dataset) in zip(forcing_parameters, datasets)
+    for (i_par, ((par, ncvar), dataset)) in enumerate(zip(forcing_parameters, datasets))
         # no need to update fixed values
         ncvar.name === nothing && continue
 
@@ -158,11 +158,17 @@ function update_forcing_regrid!(model, correct2sea, correct2dem)
         if ncvar.scale != 1.0 || ncvar.offset != 0.0
             data .= data .* ncvar.scale .+ ncvar.offset
         end
-
         xy_orig = [
             Wflow.read_x_axis(dataset),
             Wflow.read_y_axis(dataset)
         ]
+
+        if maximum(xy_orig[1]) > 180
+            # Convert longitude range from (0, 360) to (-180, 180)
+            xy_orig[1], data = convert_longitude(xy_orig[1], data)
+        end
+
+
         xy_target = [
             Wflow.read_x_axis(model.reader.cyclic_dataset),
             Wflow.read_y_axis(model.reader.cyclic_dataset),
@@ -310,7 +316,7 @@ function run(tomlpath::AbstractString; silent=nothing)
 end
 
 
-function custom_read_dataset(path_forcing, config)
+function custom_read_dataset(path_forcing, param_forcing, config)
     abspath_forcing = Wflow.input_path(config, path_forcing)
 
     # absolute paths are not supported, see Glob.jl#2
@@ -326,7 +332,7 @@ function custom_read_dataset(path_forcing, config)
         glob_dir = normpath(tomldir, dir_input)
         glob_path = replace(path_forcing, '\\' => '/')
     end
-    @info "Reading `$abspath_forcing` for forcing parameters."
+    @info "Reading `$abspath_forcing` for forcing parameter `$param_forcing`."
     
     dynamic_paths = Wflow.glob(glob_path, glob_dir)  # expand "data/forcing-year-*.nc"
     if isempty(dynamic_paths)
@@ -337,11 +343,11 @@ end
 
 
 function custom_prepare_reader(config)
-    paths_forcing = config.input.paths_forcing
     datasets = []
-    # alphabetical order so first pet, then precip and then temp
-    for path_forcing in paths_forcing
-        dynamic_paths = custom_read_dataset(path_forcing, config)
+    paths_forcing = [config.input.path_pet, config.input.path_precip,  config.input.path_temp]
+    params_forcing = ["potential evaporation", "precipitation" , "temperature"]
+    for (path_forcing, param_forcing) in zip(paths_forcing, params_forcing)
+        dynamic_paths = custom_read_dataset(path_forcing, param_forcing, config)
         dataset = NCDataset(dynamic_paths, aggdim = "time", deferopen = false)
         push!(datasets, dataset)
     end
@@ -902,4 +908,27 @@ function custom_close_files(model; delete_output::Bool = false)
     return nothing
 end
 
-run(ARGS[1])
+
+function convert_longitude(longitudes, data)
+    # Convert longitude, keep same order
+    for i in eachindex(longitudes)
+        longitudes[i] = ifelse(longitudes[i] > 180, longitudes[i] - 360, longitudes[i])
+    end
+    # Find index of data to shift
+    index = findfirst(x -> x < 0, longitudes)
+    longitudes = vcat(longitudes[index:end], longitudes[1:index-1])
+    for i in 1:size(data, 1)
+        row = data[i, :]
+        data[i, :] = vcat(row[index:end], row[1:index-1])
+    end
+    return longitudes, data
+end
+
+
+function reshape_array(data::Array{Float64, 2}, sorted_indices::Vector{Int})
+    # Reshape the data array according to the sorted indices
+    return data[:, sorted_indices]
+end
+
+run("wflow_sbm_era5_validate.toml")
+# run(ARGS[1])
