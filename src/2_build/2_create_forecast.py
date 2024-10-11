@@ -415,7 +415,6 @@ class State(Run):
         self.path_log = f"log_{self.jobs.name}_{self.cluster_id}_warmup.log"
         self.reinit = False
         self.path_forcing = _FORCING_FILES[self.forcing]
-        self.path_output = f"warmup_output.nc"
         self.toml = "warmup.toml"
 
     def get_all_states(self) -> list[datetime.datetime]:
@@ -467,8 +466,8 @@ class State(Run):
                 f"Preparing new warmup run,"
                 f"starting with cold state {state} (warmup_days = {warmup_days})"
             )
-        self.state_date = state
-        return state  # Return the datetime object
+        self.starttime = state
+        return state
 
 
 class Forecast(Run):
@@ -541,14 +540,14 @@ class Forecast(Run):
             f"Found {len(available_states)} existing states for this combination"
             " vof cluster and forcing"
         )
-        self.state_input = None  # Initialize to None
+
         for state in available_states:
             if state == self.starttime:
                 self.logger.info(
                     f"Found state with start date {state}, use as warm state"
                 )
-                self.state_input = state
-                break  # Exit loop once we find a matching state
+                self.set_state_input(state)
+                return
 
             elif state < self.starttime <= state + datetime.timedelta(days=recent_days):
                 self.logger.info(
@@ -557,17 +556,30 @@ class Forecast(Run):
                 self.state_input = state
                 self.starttime = state
                 self.duration = int((self.endtime - self.starttime) / self.timestepsecs)
-                break  # Exit loop once we find a matching state
+                self.set_state_input(state)
+                return
 
-        if self.state_input is None:
-            self.logger.info("Found no matching states, need to create a new state")
-            self.state_input = self.state.get_new_state()  # Assume this returns a datetime
+        self.logger.info("Found no matching states, need to create a new state")
+        self.state_input = self.state.get_new_state()
 
         if self.state_input is None:
             raise ValueError("Failed to set state_input to a valid datetime")
 
         self.state_file_name = f"{self.forcing}_{self.state_input.strftime(_DATE_FORMAT_FNAME)}.nc"
+        
+    def set_state_input(self, state: datetime.datetime) -> None:
+        """
+        Set the input path to the state given a state date
 
+        Parameters
+        ----------
+        state : datetime.dateime
+            The date of the input state
+        """
+        state_dir = os.path.join(_ROOT, "3-input", "wflow_state", str(self.cluster_id))
+        self.state_input = os.path.join(state_dir, f"{self.forcing}_{state.strftime(_DATE_FORMAT_FNAME)}.nc")
+        self.logger.debug(f"set state_input to {self.state.input}")
+        
 
 if __name__ == "__main__":
     logging.basicConfig(
