@@ -613,14 +613,13 @@ if __name__ == "__main__":
         datefmt=r"%Y-%m-%d %H:%M:%S",
     )
     try:
-        runs = Jobs(r"C:\git\Moonshot_2_for_Africa\forecasts\2024-10-16_MS2_workshop\forecast_mozambique_freddy.yml")
-        # args = argparse.ArgumentParser()
-        # args.add_argument("--config", type=str, required=True)
-        # args = args.parse_args()
+        args = argparse.ArgumentParser()
+        args.add_argument("--config", type=str, required=True)
+        args = args.parse_args()
         
-        # runs = Jobs(
-        #     args.config
-        # )
+        runs = Jobs(
+            args.config
+        )
         runs.prepare()
     except Exception as e:
         traceback.print_exc()
