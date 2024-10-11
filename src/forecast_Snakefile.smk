@@ -93,12 +93,7 @@ Define the output files and get the wildcards later.
 
 state_dir = "data/3-input/wflow_state/{}/{}" #will be formatted as forcing, date
 
-def get_warmup_toml(FORECASTS, CLUSTERS):
-    return [str(output_dir)+f"/{forecast}/{cluster}/warmup.toml" 
-            for forecast in FORECASTS 
-            for cluster in CLUSTERS[forecast]]
-
-def get_all_output_files(filename, FORECASTS, CLUSTERS):
+def get_output_files(filename, FORECASTS, CLUSTERS):
     return [str(output_dir)+f"/{forecast}/{cluster}/"+filename 
             for forecast in FORECASTS 
             for cluster in CLUSTERS[forecast]]
@@ -107,7 +102,7 @@ rule all:
     input: 
         get_output_files("warmup.toml", FORECASTS, CLUSTERS),
         get_output_files("forecast.toml", FORECASTS, CLUSTERS),
-        get_output_files("output_scalar.nc", FORECASTS, CLUSTERS),
+        get_output_files("output.nc", FORECASTS, CLUSTERS),
          
 """ 
 ::: PREPARE FORECAST :::
