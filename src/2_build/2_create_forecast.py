@@ -299,7 +299,7 @@ class Run:
     def set_toml_forcing(self, forcing_dict=_FORCING_FILES):
         self.var_precip, self.path_precip = forcing_dict[self.forcing]["precip"]
         self.path_precip = convert_path(self.path_precip)
-        
+
         self.var_pet, self.path_pet = forcing_dict[self.forcing]["pet"]
         self.path_pet = convert_path(self.path_pet)
 
@@ -509,7 +509,6 @@ class State(Run):
         index = bisect.bisect_right(available_states, self.endtime)
         if index:
             state = available_states[index - 1]
-            self.set_state_input(state)
             self.logger.info(
                 f"Preparing new warmup run, starting at closest existing state {state}"
             )
@@ -522,6 +521,7 @@ class State(Run):
                 f"starting with cold state {state} (warmup_days = {warmup_days})"
             )
         self.starttime = state
+        self.set_state_input(state)
         self.set_state_output(self.endtime)
         return state
 
