@@ -57,19 +57,25 @@ _DATE_FORMAT_LONG = r"%Y-%m-%dT%H:%M:%S"
 
 _FORCING_FILES = {
     "era5_daily": {
-        'precip': ("tp", "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_tp_*_daily.nc"),
-        'temp': ("t2m", "p:/wflow_global/hydromt/meteo/era5_daily/t2m/era5_t2m_*_daily.nc"),
-        'pet': ("pet", "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
+        'precip': ("tp", f"{DRIVE}/wflow_global/hydromt/meteo/era5_daily/tp/era5_tp_*_daily.nc"),
+        'temp': ("t2m", f"{DRIVE}/wflow_global/hydromt/meteo/era5_daily/t2m/era5_t2m_*_daily.nc"),
+        'pet': ("pet", f"{DRIVE}/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
         'temp_in_celsius': False,
     },
     "chirps":  {
-        'precip': ("precipitation", "p:/wflow_global/hydromt/meteo/chirps_africa_caily_v2.0/CHIRPS_rainfall*.nc"),
-        'temp': ("t2m", "p:/wflow_global/hydromt/meteo/era5_daily/t2m/era5_t2m_*_daily.nc"),
-        'pet': ("pet", "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
+        'precip': ("precipitation", f"{DRIVE}/wflow_global/hydromt/meteo/chirps_africa_caily_v2.0/CHIRPS_rainfall*.nc"),
+        'temp': ("t2m", f"{DRIVE}/wflow_global/hydromt/meteo/era5_daily/t2m/era5_t2m_*_daily.nc"),
+        'pet': ("pet", f"{DRIVE}/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc"),
         'temp_in_celsius': False,
     },
-    # "era5_hourly": "...", TODO support hourly PET
+    "era5_hourly": {
+        'precip': ("tp", f"{DRIVE}/wflow_global/hydromt/meteo/era5_hourly/tp/era5_tp_*_hourly.nc"),
+        'temp': ("t2m", f"{DRIVE}/wflow_global/hydromt/meteo/era5_hourly/t2m/era5_t2m_*_hourly.nc"),
+        'pet': ("pet", f"{DRIVE}/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_hourly_debruin_PET_hourly_*.nc"),
+        'temp_in_celsius': False,
+    }
 }
+
 
 _MAX_RUNTIME = 10  # upper limit for runtime, unit: ms per timestep per km²
 # TODO: dict per cluster type / number of cores
@@ -369,16 +375,22 @@ class Run:
         w.set_config("starttime", self.starttime.strftime(_DATE_FORMAT_LONG))
         w.set_config("endtime", self.endtime.strftime(_DATE_FORMAT_LONG))
         w.set_config("timestepsec", self.timestepsecs)
-        w.set_config("dir_input", self.dir_input)
-        w.set_config("dir_output", self.dir_output)
+        w.set_config("dir_input", convert_path(self.dir_input))
+        w.set_config("dir_output", convert_path(self.dir_output))
         w.set_config("path_log", self.path_log)
 
         self.set_toml_forcing()
-        w.set_config("input", "path_precip", self.path_precip)
+        w.set_config("input", "path_precip", convert_path(self.path_precip))
+        self.logger.debug(f"set path_precip to {convert_path(self.path_precip)}")
+        self.logger.debug(w.config["input"]["path_precip"])
         w.set_config("input", "vertical", "precipitation", self.var_precip)
-        w.set_config("input", "path_pet", self.path_pet)
+        w.set_config("input", "path_pet", convert_path(self.path_pet))
+        self.logger.debug(f"set path_pet to {convert_path(self.path_pet)}")
+        self.logger.debug(w.config["input"]["path_pet"])
         w.set_config("input", "vertical", "potential_evaporation", self.var_pet)
-        w.set_config("input", "path_temp", self.path_temp)
+        w.set_config("input", "path_temp", convert_path(self.path_temp))
+        self.logger.debug(f"set path_temp to {convert_path(self.path_temp)}")
+        self.logger.debug(w.config["input"]["path_temp"])
         w.set_config("input", "vertical", "temperature", self.var_temp)
 
         w.set_config("model", "reinit", self.reinit)
@@ -634,6 +646,13 @@ class Forecast(Run):
         if self.state_file_name is None:
             self.find_recent_state()
         return self.state_file_name
+    
+    def set_toml_forcing(self, forcing_dict=_FORCING_FILES):
+        super().set_toml_forcing(forcing_dict)
+        
+        # If using hourly data, adjust the timestepsecs
+        if self.forcing == "era5_hourly":
+            self.timestepsecs = 3600  # 1 hour in seconds
 
 
 if __name__ == "__main__":
