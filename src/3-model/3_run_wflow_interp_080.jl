@@ -146,7 +146,7 @@ function update_forcing_regrid!(model, correct2sea, correct2dem)
     # Wflow expects `right` labeling of the forcing time interval, e.g. daily precipitation
     # at 01-02-2000 00:00:00 is the accumulated total precipitation between 01-01-2000
     # 00:00:00 and 01-02-2000 00:00:00.
-    longitude_correction = get(config.forcing, "longitude_correction", [false, false, false])::Vector
+
     # load from NetCDF into the model according to the mapping
     for (i_par, ((par, ncvar), dataset)) in enumerate(zip(forcing_parameters, datasets))
         # no need to update fixed values
@@ -163,7 +163,7 @@ function update_forcing_regrid!(model, correct2sea, correct2dem)
             Wflow.read_y_axis(dataset)
         ]
 
-        if longitude_correction[i_par] == true #TODO: replace with a check instead of through settings
+        if max(xy_orig[1]) > 180
             # Convert longitude range from (0, 360) to (-180, 180)
             xy_orig[1], data = convert_longitude(xy_orig[1], data)
         end
