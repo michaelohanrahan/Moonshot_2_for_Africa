@@ -56,9 +56,19 @@ _DATE_FORMAT_SHORT = r"%Y-%m-%d"
 _DATE_FORMAT_LONG = r"%Y-%m-%dT%H:%M:%S"
 
 _FORCING_FILES = {
-    "era5": "...",
-    "era5_hourly": "...",
-    "chirps": "...",
+    "era5_daily": {
+        'precip': "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_tp_*_daily.nc",
+        'temp': "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_t2m_*_daily.nc",
+        'pet': "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc",
+        'temp_in_celsius': False,
+    },
+    "chirps":  {
+        'precip': "p:/wflow_global/hydromt/meteo/chirps_africa_caily_v2.0/CHIRPS_rainfall*.nc",
+        'temp': "p:/wflow_global/hydromt/meteo/era5_daily/tp/era5_t2m_*_daily.nc",
+        'pet': "p:/moonshot2-casestudy/Wflow/africa/data/3-input/global_era5_pet/era5_daily_debruin_PET_daily_*.nc",
+        'temp_in_celsius': False,
+    },
+    # "era5_hourly": "...", TODO support hourly PET
 }
 
 _MAX_RUNTIME = 10  # upper limit for runtime, unit: ms per timestep per km²
@@ -193,7 +203,7 @@ class Jobs:
                 )
 
         self.points = self.read_points_of_interest()
-        self.clusters = gpd.read_file(self.config.convert_path(_CLUSTERS))
+        self.clusters = gpd.read_file(convert_path(_CLUSTERS))
 
         self.cluster_ids = []
         self.runtimes = {}
@@ -340,7 +350,7 @@ class Run:
             opt = configread(config_fn=hydromt_config_fn)
             w.update(write=False, opt=opt)
 
-        self.logger.info(f"Writing Wflow config (warmup) file {self.toml} to {self.dir_output}")
+        self.logger.info(f"Writing Wflow config file {self.toml} to {self.dir_output}")
         w.write_config(self.toml, self.dir_output)
         w = None  # close model
 
@@ -453,6 +463,7 @@ class State(Run):
         warmup_days : int, optional
             The tolerance to search for an existing state as starting point.
         """
+        self.create_state = True
         available_states = self.get_all_states()
         index = bisect.bisect_right(available_states, self.jobs.tstart)
         if index:
@@ -483,7 +494,7 @@ class Forecast(Run):
 
     def __init__(self, jobs: Jobs, cluster_id: int) -> None:
         super().__init__(jobs, cluster_id)
-        self.forcing = jobs.forcing  # Add this line
+        self.forcing = jobs.forcing
         self.state = State(jobs, cluster_id)
         self.starttime = self.jobs.tstart
         self.endtime = self.jobs.tend
@@ -491,7 +502,7 @@ class Forecast(Run):
         self.duration = self.jobs.duration
         self.path_log = f"log_{self.jobs.name}_{self.cluster_id}_forecast.log"
         self.reinit = False
-        self.path_forcing = _FORCING_FILES[self.forcing]  # Use self.forcing instead of self.jobs.forcing
+        self.path_forcing = _FORCING_FILES[self.forcing]
         self.path_output = "output.nc"
         self.toml = "forecast.toml"
 
@@ -580,7 +591,7 @@ class Forecast(Run):
         """
         state_dir = os.path.join(_ROOT, "3-input", "wflow_state", str(self.cluster_id))
         self.state_input = os.path.join(state_dir, f"{self.forcing}_{state.strftime(_DATE_FORMAT_FNAME)}.nc")
-        self.logger.debug(f"set state_input to {self.state.input}")
+        self.logger.debug(f"set state_input to {self.state_input}")
         
 
 if __name__ == "__main__":
