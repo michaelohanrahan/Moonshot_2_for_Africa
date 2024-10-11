@@ -139,8 +139,11 @@ Running the instate run for each forecast, cluster.
 
 rule run_forecast:
     input:
+        # instate = rules.touch_instate.input,
+        # touched = rules.touch_instate.output
         toml = str(output_dir)+"/{forecast}/{cluster}/wflow_sbm_forecast.toml"
     params: 
+        # project=Path(base_dir, "bin").as_posix()
         warmup = str(output_dir)+"/{forecast}/{cluster}/wflow_sbm_warmup.toml"
     output:
         file = str(output_dir)+"/{forecast}/{cluster}/output_scalar.nc"
