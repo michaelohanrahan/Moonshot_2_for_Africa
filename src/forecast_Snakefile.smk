@@ -138,22 +138,20 @@ rule run_forecast:
         ftom = str(output_dir)+"/wflow_forecast/{forecast}/{cluster}/forecast.toml"
     params: 
         project=Path(base_dir, "bin").as_posix(),
-        warmup = str(output_dir)+"/wflow_forecast/{forecast}/{cluster}/warmup.toml"
+        warmup = str(output_dir)+"/wflow_forecast/{forecast}/{cluster}/warmup.toml",
+        runscript = str(Path(base_dir, "src/3-model/3_run_wflow_interp_080.jl").as_posix())
     output:
         file = str(output_dir)+"/wflow_forecast/{forecast}/{cluster}/output.nc"
-    localrule: True
-    run:
-    
-        if os.path.isfile(params.warmup):
-            shell(
-                """
-                julia --project='{params.project}' run_script.jl {params.warmup}
-                julia --project='{params.project}' run_script.jl {input.ftom}
-                """
-            )
-        else:
-            shell(
-                """
-                julia --project='{params.project}' run_script.jl {input.ftom}
-                """
-            )
+    localrule: False
+    shell:
+        r"""
+        if exist "{input.wtom}" (
+            echo Running warmup
+            julia -t 4 -e "using Pkg; Pkg.activate(\"{params.project}\"); Pkg.instantiate(); include(\"{params.runscript}\")" "{input.wtom}"
+            echo Running forecast after warmup
+            julia -t 4 -e "using Pkg; Pkg.activate(\"{params.project}\"); Pkg.instantiate(); include(\"{params.runscript}\")" "{input.ftom}"
+        ) else (
+            echo No warmup file found, running only forecast
+            julia -t 4 -e "using Pkg; Pkg.activate(\"{params.project}\"); Pkg.instantiate(); include(\"{params.runscript}\")" "{input.ftom}"
+        )
+        """
