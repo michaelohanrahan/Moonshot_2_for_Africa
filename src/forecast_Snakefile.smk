@@ -56,12 +56,20 @@ def prepare(base_dir):
     for fc, cfg in CONFIG_DICT.items():
         print(f"{fc}: {cfg}")
 
-    CLUSTERS = {fc: get_clusters_and_state_files(cfg)[1:][0] for fc,cfg in zip(FORECASTS, CONFIGS)}
+    CLUSTERS = {}
+    STATE_FILES = {}
+    for fc, cfg in zip(FORECASTS, CONFIGS):
+        try:
+            clusters, state_files = get_clusters_and_state_files(cfg)[1:]
+            CLUSTERS[fc] = clusters
+            STATE_FILES[fc] = state_files
+        except ValueError as e:
+            print(f"Warning: Skipping forecast {fc} due to error: {str(e)}")
+
     print("\nCLUSTERS:")
     for fc, clusters in CLUSTERS.items():
         print(f"{fc}: {clusters}")
     
-    STATE_FILES = {fc: get_clusters_and_state_files(cfg)[2] for fc,cfg in zip(FORECASTS, CONFIGS)}
     print("\nSTATE_FILES:")
     for fc, state_files in STATE_FILES.items():
         print(f"{fc}: {state_files}")
@@ -144,14 +152,14 @@ rule run_forecast:
         file = str(output_dir)+"/wflow_forecast/{forecast}/{cluster}/output.nc"
     localrule: False
     shell:
-        r"""
-        if exist "{input.wtom}" (
+        """
+        if [ -f "{input.wtom}" ]; then
             echo Running warmup
-            julia -t 4 -e "using Pkg; Pkg.activate(\"{params.project}\"); Pkg.instantiate(); include(\"{params.runscript}\")" "{input.wtom}"
+            julia -t 4 -e 'using Pkg; Pkg.activate("{params.project}"); Pkg.instantiate(); include("{params.runscript}")' "{input.wtom}"
             echo Running forecast after warmup
-            julia -t 4 -e "using Pkg; Pkg.activate(\"{params.project}\"); Pkg.instantiate(); include(\"{params.runscript}\")" "{input.ftom}"
-        ) else (
+            julia -t 4 -e 'using Pkg; Pkg.activate("{params.project}"); Pkg.instantiate(); include("{params.runscript}")' "{input.ftom}"
+        else
             echo No warmup file found, running only forecast
-            julia -t 4 -e "using Pkg; Pkg.activate(\"{params.project}\"); Pkg.instantiate(); include(\"{params.runscript}\")" "{input.ftom}"
-        )
+            julia -t 4 -e 'using Pkg; Pkg.activate("{params.project}"); Pkg.instantiate(); include("{params.runscript}")' "{input.ftom}"
+        fi
         """
