@@ -1,24 +1,20 @@
-"""
-PUTTING ALL SNAKEMAKE EXECUTOR STUFF HERE
-"""
-
 executor: cluster-generic
-# configfile: $HOME/documents/RWSoS/RWSOS_Calibration/meuse/config/calib.yml
 latency-wait: 60
 keep-going: True
+keep-incomplete: True
 rerun-incomplete: True
 printshellcmds: True
 scheduler: greedy
-restart-times: 0
-forceall: False
+restart-times: 2
+forceall: True
 max-jobs-per-second: 4
 max-status-checks-per-second: 1
-jobs: 60
+jobs: 30
 rerun-triggers: mtime
 
 #successor to --cluster must be installed with pip snakemake-executor-plugin-cluster-generic  (1.0.9)
 cluster-generic-submit-cmd:
-  mkdir -p /p/moonshot2-casestudy/data/0-log/h7/{name} &&
+  mkdir -p /u/ohanrah/documents/Moonshot_2_for_Africa/data/0-log/h7/{name} &&
   sbatch
     --partition={resources.partition}
     --account=hyd
@@ -27,15 +23,18 @@ cluster-generic-submit-cmd:
     --qos={resources.qos}sacct
     --cpus-per-task={threads}
     --job-name={name}_{jobid}
-    --output=/p/moonshot2-casestudy/data/0-log/h7/{name}/{jobid}.log
+    --mail-type=FAIL
+    --mail-user=michael.ohanrahan@deltares.nl
+    --output=/u/ohanrah/documents/Moonshot_2_for_Africa/data/0-log/h7/{name}/{jobid}.log
 
 #scontrol show partition 4pcpu shows unlimited mem
 default-resources:
-  - partition="4vcpu"
+  - partition="4pcpu"
   - qos="sbatch"
-  - time="10-12:00:00"
+  - time="1-00:00:00"
   - mem_mb=32768 #32gb
 
-cores: 4
-local-cores: 4
+group-components:
+  - calc_pet=4
+
 
