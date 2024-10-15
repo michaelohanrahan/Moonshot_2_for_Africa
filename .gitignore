@@ -24,6 +24,7 @@ __pycache__/
 *.exe
 *.out
 *.app
+*.pixis
 
 # Distribution / packaging
 .Python

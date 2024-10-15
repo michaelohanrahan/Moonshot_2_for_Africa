@@ -165,10 +165,10 @@ def calc_pet(grid, args, l, dc):
     grid['press_msl'] = grid['press_msl'] / 100
 
     try:
-        ic(temp_in)
-        ic(grid['press_msl'])
-        ic(grid['kin'])
-        ic(grid['kout'])
+        # ic(temp_in)
+        # ic(grid['press_msl'])
+        # ic(grid['kin'])
+        # ic(grid['kout'])
         pet = pet_debruin(
             temp=temp_in,
             press=grid['press_msl'],
@@ -176,7 +176,7 @@ def calc_pet(grid, args, l, dc):
             k_ext=grid['kout']
         )
         pet = pet.chunk(time=1)
-        ic(pet)
+        # ic(pet)
         
         if np.isnan(pet.values).all():
             l.error(f"All PET values are NaN for the year. Debugging pet function...")
@@ -224,7 +224,7 @@ def process_single_month(grid, args, l, dc, outdir, year, month):
     freq_out = 'hourly' if args.freq_data == 'H' else args.freq_data
     freq_out = 'daily' if freq_out == 'D' else freq_out
     
-    output_file = Path(outdir) / f'{args.tpf}_{freq_out}_{args.method}_PET_{freq_out}_{year}_{month:02d}_{year}-{month:02d}.nc'
+    output_file = Path(outdir, f'{args.tpf}_{freq_out}_{args.method}_PET_{freq_out}_{year}_{month:02d}_{year}-{month:02d}.nc')
     
     if output_file.exists() and check_incomplete(g_period, year, output_file, month):
         l.info(f"Incomplete PET data for period {period_start} to {period_end}, overwrite set to True.")
@@ -240,7 +240,7 @@ def process_single_month(grid, args, l, dc, outdir, year, month):
     
     if isinstance(pet, xr.DataArray):
         # Plot monthly mean
-        plot_mean(pet, year, Path(outdir) / args.method, month)
+        plot_mean(args, pet, year, Path(outdir) / args.method, month)
         l.info(f"Monthly mean plot created for {year}-{month:02d}")
         
         ds_out = create_output_dataset(pet, grid, args)
@@ -278,15 +278,18 @@ def adjust_yaml_root(yaml_path, drive):
     with open(yaml_path, 'r') as file:
         data = yaml.safe_load(file)
     
-    # Adjust the root path in the meta section
-    if 'meta' in data and 'root' in data['meta']:
-        data['meta']['root'] = str(Path(drive) / 'wflow_global/hydromt')
+    # # Adjust the root path in the meta section
+    metaroot = str(Path(drive, '/wflow_global/hydromt').as_posix())
+    # pop meta root 
+    data['meta'].pop('root')
+    data.pop('meta')
     
     # Adjust paths in all top-level entries except 'meta'
     for key, value in data.items():
         if key != 'meta' and isinstance(value, dict) and 'path' in value:
-            value['path'] = str(Path(data['meta']['root']) / value['path'].lstrip('/'))
-    
+            # ic(value['path'].lstrip('/'))
+            value['path'] = str(Path(metaroot, value['path'].lstrip('/')).as_posix())
+            # ic(value['path'])
     return data
 
 def rename_dims(ds):
@@ -306,9 +309,13 @@ def main(args):
     l.info("Building model assuming access to deltares_data catalog")
     
     drive = syscheck()
-    yaml_path = Path(drive) / 'wflow_global/hydromt/deltares_data.yml'
+    # ic(drive)
+    #lowercase drive
+    drive = drive.lower()
+    yaml_path = Path(drive, '/wflow_global', 'hydromt', 'deltares_data.yml').as_posix()
+    # ic(yaml_path)
     adjusted_yaml = adjust_yaml_root(yaml_path, drive)
-    
+    # ic(adjusted_yaml)
     # Create a temporary file with the adjusted YAML
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as temp_file:
         yaml.dump(adjusted_yaml, temp_file)
@@ -316,14 +323,21 @@ def main(args):
     
     try:
         dc = DataCatalog(temp_yaml_path)
-        
-        grid = dc.get_rasterdataset(args.tpf)
+        if args.month is None:
+            t0 = pd.Timestamp(f"{args.year}-01-01")
+            t1 = t0 + pd.tseries.offsets.YearEnd()
+            grid = dc.get_rasterdataset(args.tpf, time_tuple=(t0, t1))
+        else:
+            t0 = pd.Timestamp(f"{args.year}-{int(args.month):02d}-01")
+            t1 = t0 + pd.tseries.offsets.MonthEnd()
+            grid = dc.get_rasterdataset(args.tpf, time_tuple=(t0, t1))
         grid = rename_dims(grid)  # Rename dimensions
+        # ic(grid)
         
         l.info(f"Calculating PET with method: {args.method}")
         
         # Determine the time step using a subset of the data
-        time_subset = grid.time[:100]  # Take only the first 100 time steps
+        time_subset = grid.time[:20]  # Take only the first 100 time steps
         time_diff = time_subset.diff('time').median()
         l.info(f"Median time difference: {time_diff}")
         
