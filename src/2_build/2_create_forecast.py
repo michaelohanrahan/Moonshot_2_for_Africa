@@ -646,13 +646,6 @@ class Forecast(Run):
         if self.state_file_name is None:
             self.find_recent_state()
         return self.state_file_name
-    
-    def set_toml_forcing(self, forcing_dict=_FORCING_FILES):
-        super().set_toml_forcing(forcing_dict)
-        
-        # If using hourly data, adjust the timestepsecs
-        if self.forcing == "era5_hourly":
-            self.timestepsecs = 3600  # 1 hour in seconds
 
 
 if __name__ == "__main__":

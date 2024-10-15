@@ -41,7 +41,7 @@ def prepare(base_dir):
     """
     
     #Listing the files with forecast parameters
-    CONFIGS = glob(str(Path(base_dir,"forecasts", "2024-10-16_MS2_workshop").as_posix())+"/*.yml")
+    CONFIGS = glob(str(Path(base_dir,"forecasts_chirps", "2024-10-16_MS2_workshop").as_posix())+"/*.yml")
     print("\nCONFIGS:")
     for config in CONFIGS:
         print(config)
